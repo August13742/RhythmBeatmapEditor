@@ -1,0 +1,27 @@
+[gd_scene format=3 uid="uid://dvta4m7mwurt2"]
+
+[ext_resource type="Script" uid="uid://bpl146gmmsuek" path="res://AudioSystem/Test/AudioTester.cs" id="1_hr1ac"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_jch4a"]
+sky_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+ground_horizon_color = Color(0.66224277, 0.6717428, 0.6867428, 1)
+
+[sub_resource type="Sky" id="Sky_na7ea"]
+sky_material = SubResource("ProceduralSkyMaterial_jch4a")
+
+[sub_resource type="Environment" id="Environment_7bt2q"]
+background_mode = 2
+sky = SubResource("Sky_na7ea")
+tonemap_mode = 2
+
+[node name="AudioTest" type="Node3D" unique_id=1787368490]
+script = ExtResource("1_hr1ac")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=650565437]
+transform = Transform3D(-0.8660254, -0.43301278, 0.25, 0, 0.49999997, 0.86602545, -0.50000006, 0.75, -0.43301266, 0, 0, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=328547707]
+environment = SubResource("Environment_7bt2q")
+
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1519659004]
