@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://cxcet2mqvf0nk"]
+
+[ext_resource type="Script" uid="uid://bymn300kl03ks" path="res://AudioSystem/Test/SynthTest.cs" id="1_ikybx"]
+
+[node name="SynthTest" type="Control" unique_id=1055975882]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_ikybx")

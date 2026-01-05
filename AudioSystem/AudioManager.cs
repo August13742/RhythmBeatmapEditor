@@ -70,8 +70,8 @@ public partial class AudioManager : Node
             return;
         }
         Instance = this;
-        InitializePool();
-        InitializeMusic();
+        InitialisePool();
+        InitialiseMusic();
     }
 
     public override void _Process(double delta)
@@ -116,7 +116,7 @@ public partial class AudioManager : Node
     #endregion
 
     #region Initialization
-    private void InitializePool()
+    private void InitialisePool()
     {
         _voicePool = new ActiveVoice[_voicePoolSize];
         Node poolRoot = new Node { Name = "SFX_Pool" };
@@ -141,7 +141,7 @@ public partial class AudioManager : Node
         }
     }
 
-    private void InitializeMusic()
+    private void InitialiseMusic()
     {
         Node musicRoot = new Node { Name = "Music_System" };
         AddChild(musicRoot);
