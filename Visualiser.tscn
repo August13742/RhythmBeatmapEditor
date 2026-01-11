@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://57yv48lyutsu"]
+
+[ext_resource type="Script" uid="uid://b5ti5ni0vv7c1" path="res://VisualiserMain.cs" id="1_bk4le"]
+
+[node name="VisualiserMain" type="Node" unique_id=1065567127]
+script = ExtResource("1_bk4le")

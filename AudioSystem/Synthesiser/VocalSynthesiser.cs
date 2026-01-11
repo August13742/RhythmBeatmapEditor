@@ -17,7 +17,29 @@ public static class VocalSynthesiser
 
     public enum InstrumentType
     {
-        Kick, Snare, Bass, Square, Piano, Other
+        Kick, Snare, Bass, Square, Piano, Guitar, Other
+    }
+    
+    // Duration Buckets (Seconds) matching Python synthbank.py
+    private static readonly float[] DUR_BUCKETS = { 0.25f, 0.50f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.25f, 2.5f, 3.0f, 4.0f };
+
+    public static float GetBucket(float dur)
+    {
+        if (dur <= 0.15f) return 0.15f;
+        
+        float best = DUR_BUCKETS[0];
+        float minDiff = Mathf.Abs(dur - best);
+        
+        foreach(var d in DUR_BUCKETS)
+        {
+            float diff = Mathf.Abs(dur - d);
+            if (diff < minDiff)
+            {
+                minDiff = diff;
+                best = d;
+            }
+        }
+        return best;
     }
     #endregion
 
@@ -246,7 +268,7 @@ public static class VocalSynthesiser
     /// </summary>
     public static SFXResource GenerateDrums(InstrumentType type, float pitchVariance = 0.05f)
     {
-        float duration = 0.1f;
+        float duration = 0.15f;
         int totalSamples = (int)(SAMPLE_RATE * duration);
         float[] wave = new float[totalSamples];
         var rng = new Random();
@@ -254,7 +276,7 @@ public static class VocalSynthesiser
         bool isKick = type == InstrumentType.Kick;
         bool isSnare = type == InstrumentType.Snare;
 
-        if (!isKick && !isSnare) return GenerateInstrument(type, 60, 0.0f); // Fallback
+        if (!isKick && !isSnare) return GenerateInstrument(type, 60, 0.0f); 
 
         for (int i = 0; i < totalSamples; i++)
         {
@@ -262,22 +284,41 @@ public static class VocalSynthesiser
             
             if (isKick)
             {
-                float freqSweep = 150f * Mathf.Exp(-60f * t);
-                wave[i] = Mathf.Sin(2 * Mathf.Pi * freqSweep * t) * Mathf.Exp(-10f * t);
+                // MATCHES PYTHON: gen_drums_tone
+                // Freq Sweep 180 -> 50
+                float f_start = 180.0f;
+                float f_end = 50.0f;
+                float decay = 18.0f;
+                
+                // Phase = Integral
+                float phase = 2 * Mathf.Pi * (f_end * t - (f_start - f_end)/decay * Mathf.Exp(-decay * t));
+                wave[i] = Mathf.Sin(phase);
+                
+                // Amp Env
+                wave[i] *= Mathf.Exp(-8f * t);
+                
+                // Click Transient (Essential for punch)
+                float click = Mathf.Sin(2 * Mathf.Pi * 3200f * t) * Mathf.Exp(-400f * t);
+                wave[i] += 0.5f * click;
             }
             else
             {
+                // Snare
                 float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
-                wave[i] = noise * Mathf.Exp(-30f * t);
+                wave[i] = noise * Mathf.Exp(-20f * t);
+                
+                // Tone underbelly
+                float tone = Mathf.Sin(2 * Mathf.Pi * 200f * t) * Mathf.Exp(-15f * t);
+                wave[i] += 0.5f * tone;
             }
             
-            wave[i] *= 0.4f;
+            wave[i] *= 0.8f; // Tuned volume
         }
 
         var res = new SFXResource();
         res.Clips = new AudioStream[] { FloatsToWav(wave, wave) };
         res.Volume = 1.0f;
-        res.PitchVariance = pitchVariance; // Set Randomness
+        res.PitchVariance = pitchVariance; 
         return res;
     }
 
@@ -317,6 +358,13 @@ public static class VocalSynthesiser
                     sample = Mathf.Sin(2 * Mathf.Pi * freq * t + modIdx * Mathf.Sin(2 * Mathf.Pi * freq * 2 * t));
                     sample *= Mathf.Exp(-5f * t) * 0.3f;
                     break;
+                    
+                case InstrumentType.Guitar:
+                    // Use Karplus-Strong implementation below
+                    // This loop is sample-by-sample, but KS requires a buffer history.
+                    // We must break out or handle differently.
+                    // For logic simplicity, we'll return early if Guitar is detected and call dedicated function.
+                    return GenerateGuitarKS(midi, duration);
 
                 case InstrumentType.Other:
                     sample = Mathf.Sign(Mathf.Sin(2 * Mathf.Pi * freq * 1.5f * t));
@@ -331,6 +379,50 @@ public static class VocalSynthesiser
         res.Clips = new AudioStream[] { FloatsToWav(wave, wave) };
         res.Volume = 1.0f;
         res.PitchVariance = pitchVariance; // Set Randomness
+        return res;
+    }
+
+    /// <summary>
+    /// Karplus-Strong Guitar Synthesis
+    /// </summary>
+    public static SFXResource GenerateGuitarKS(int midi, float duration = 0.2f)
+    {
+        float freq = GetNoteFreq(midi);
+        int sr = SAMPLE_RATE;
+        
+        // Ring Buffer size
+        int N = (int)(sr / freq);
+        if (N < 2) N = 2; // Safety
+        
+        float[] buf = new float[N];
+        var rng = new Random();
+        
+        // Init with noise (Burst)
+        for(int i=0; i<N; i++) buf[i] = (float)(rng.NextDouble() * 2.0 - 1.0);
+        
+        int n_samples = (int)(sr * duration);
+        float[] wave = new float[n_samples];
+        
+        int ptr = 0;
+        
+        for(int i=0; i<n_samples; i++)
+        {
+            wave[i] = buf[ptr];
+            
+            // Lowpass filter
+            int prev_ptr = (ptr - 1 + N) % N;
+            float avg = 0.992f * 0.5f * (buf[ptr] + buf[prev_ptr]);
+            
+            buf[ptr] = avg;
+            ptr = (ptr + 1) % N;
+        }
+        
+        // Normalize gain similar to others ~0.5 scale
+        for(int i=0; i<n_samples; i++) wave[i] *= 0.5f;
+
+        var res = new SFXResource();
+        res.Clips = new AudioStream[] { FloatsToWav(wave, wave) };
+        res.Volume = 1.0f;
         return res;
     }
 

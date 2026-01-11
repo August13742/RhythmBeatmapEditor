@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://hn6ciicl20sk"]
+
+[ext_resource type="Script" uid="uid://c4jg4hvd24eg6" path="res://Test/TestRunner.cs" id="1_oucmq"]
+
+[node name="Node" type="Node" unique_id=1369578329]
+script = ExtResource("1_oucmq")
