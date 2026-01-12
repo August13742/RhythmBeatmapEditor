@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://hn6ciicl20sk"]
+[gd_scene format=3 uid="uid://dj271gby2yttt"]
 
-[ext_resource type="Script" uid="uid://c4jg4hvd24eg6" path="res://Test/TestRunner.cs" id="1_oucmq"]
+[ext_resource type="Script" uid="uid://c4jg4hvd24eg6" path="res://Test/TestRunner.cs" id="1_fm5tc"]
 
 [node name="Node" type="Node" unique_id=1369578329]
-script = ExtResource("1_oucmq")
+script = ExtResource("1_fm5tc")
