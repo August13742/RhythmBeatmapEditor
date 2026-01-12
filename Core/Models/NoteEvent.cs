@@ -18,9 +18,6 @@ public class NoteEvent
     /// <summary>
     /// Duration in seconds.
     /// </summary>
-    /// <summary>
-    /// Duration in seconds.
-    /// </summary>
     [JsonPropertyName("dur")]
     public float Duration { get; set; }
 
@@ -29,9 +26,6 @@ public class NoteEvent
     /// </summary>
     public int Lane { get; set; }
 
-    /// <summary>
-    /// MIDI Pitch or Frequency.
-    /// </summary>
     /// <summary>
     /// MIDI Pitch or Frequency.
     /// </summary>

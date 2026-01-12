@@ -1,0 +1,25 @@
+[gd_scene format=3 uid="uid://dwsbi6vi475hi"]
+
+[ext_resource type="Script" uid="uid://dwyj8ssswqk33" path="res://Editor/Visuals/TimelineController.cs" id="1_wwt3p"]
+[ext_resource type="PackedScene" uid="uid://b71l52rbtpjxn" path="res://UI/NoteLayer.tscn" id="2_7txip"]
+[ext_resource type="PackedScene" uid="uid://cuefd7f6nvs8q" path="res://UI/NoteObject.tscn" id="2_ikqlj"]
+
+[node name="TimelineView" type="Control" unique_id=2050564706 node_paths=PackedStringArray("LaneContainer", "NoteLayer")]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_wwt3p")
+NotePrefab = ExtResource("2_ikqlj")
+LaneContainer = NodePath("LaneContainer")
+NoteLayer = NodePath("NoteLayer")
+
+[node name="LaneContainer" type="HBoxContainer" parent="." unique_id=2098093159]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="NoteLayer" parent="." unique_id=1406410674 instance=ExtResource("2_7txip")]
+layout_mode = 1

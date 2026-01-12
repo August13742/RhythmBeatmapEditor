@@ -12,7 +12,7 @@ public class BeatmapMetadata
     public string Title { get; set; } = "Unknown";
     public string Artist { get; set; } = "Unknown";
     public string Mapper { get; set; } = "Unknown";
-    public string DifficultyName { get; set; } = "Normal";
+    public string DifficultyName { get; set; } = "Unknown";
 }
 
 /// <summary>
