@@ -1,6 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 using RhythmBeatmapEditor.Core.Editor;
+using System.IO;
 using AudioSystem;
 using RhythmBeatmapEditor.Editor.Visuals;
 
@@ -8,15 +9,13 @@ namespace RhythmBeatmapEditor
 {
     public partial class MapController : Node
     {
-        // CHANGED: We now expect this to be assigned in the Inspector
         [Export] public TimelineController TimelineUI { get; set; }
 
         private EditorContext _context;
         
         // Paths (Hardcoded for prototype)
-        private const string SONG_PATH = @"c:\Users\augus\Desktop\PythonHelperScripts\RhythmGameVisualiser\rhythm_engine\Music\betelgeuse.mp3";
-        private const string MAP_PATH = @"c:\Users\augus\Desktop\PythonHelperScripts\RhythmGameVisualiser\rhythm_engine\stems\betelgeuse\beatmap\HARD.json";
-
+        private const string TEST_SONG_PATH_RELATIVE = "res://TestData/Music/betelgeuse.mp3";
+        private const string TEST_MAP_PATH_RELATIVE = "res://TestData/Beatmap/NORMAL.json";
         private int _noteIndex = 0;
         private Dictionary<string, SFXResource> _synthBank = new();
 
@@ -50,27 +49,26 @@ namespace RhythmBeatmapEditor
 
         private void LoadContent()
         {
-            GD.Print($"[MapController] Loading Song: {SONG_PATH}");
+            // Globalize paths so System.IO can read them
+            string absSongPath = ProjectSettings.GlobalizePath(TEST_SONG_PATH_RELATIVE);
+            string absMapPath = ProjectSettings.GlobalizePath(TEST_MAP_PATH_RELATIVE);
+            GD.Print($"[MapController] Loading Song: {absSongPath}");
             
-            // Audio
-            _context.AudioController.LoadSong(SONG_PATH);
+            // Audio (Ensure your AudioController handles absolute paths)
+            _context.AudioController.LoadSong(absSongPath);
             
             // Map
-            if (System.IO.File.Exists(MAP_PATH))
+            if (File.Exists(absMapPath))
             {
-                string json = System.IO.File.ReadAllText(MAP_PATH);
+                string json = File.ReadAllText(absMapPath);
                 _context.LoadBeatmapJSON(json);
                 
-                // Bake SFX
                 BakeSynthBank();
-                
-                // Init Visuals
-                // We assume TimelineUI is already in the scene, just needs data
                 TimelineUI.Initialise(_context.CurrentBeatmap);
             }
             else
             {
-                GD.PrintErr($"[Error] Map not found: {MAP_PATH}");
+                GD.PrintErr($"[Error] Map not found: {absMapPath}");
             }
         }
 
