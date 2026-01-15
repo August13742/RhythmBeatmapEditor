@@ -1,7 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 namespace ObjectPool;
-// Interface for objects that need initialization/reset logic
+// Interface for objects that need initialisation/reset logic
 public interface IPoolable
 {
     void OnSpawned();
@@ -17,10 +17,19 @@ public class ObjectPool<T> where T : Node
     private readonly Stack<T> _stack = new();
     private readonly System.Func<T> _factory;
 
-    // Constructor for Code-based instantiation
+    // Constructor 1: Code-based instantiation (Factory)
     public ObjectPool(System.Func<T> factoryMethod, int prewarm, Node activeParent, Node inactiveParent)
     {
         _factory = factoryMethod;
+        _parent = activeParent;
+        _poolRoot = inactiveParent;
+        for (int i = 0; i < prewarm; i++) _stack.Push(CreateInstance());
+    }
+
+    // Constructor 2: Scene-based instantiation (Prefab)
+    public ObjectPool(PackedScene prefab, int prewarm, Node activeParent, Node inactiveParent)
+    {
+        _prefab = prefab;
         _parent = activeParent;
         _poolRoot = inactiveParent;
         for (int i = 0; i < prewarm; i++) _stack.Push(CreateInstance());
