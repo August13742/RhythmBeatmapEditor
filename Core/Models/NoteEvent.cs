@@ -54,4 +54,17 @@ public class NoteEvent
         Pitch = pitch;
         Source = source;
     }
+
+    /// <summary>
+    /// Runtime edit state.
+    /// </summary>
+    public enum NoteState
+    {
+        Normal,
+        Dirty,  // Edited but not confirmed (Paused)
+        Edited  // Confirmed (Played), but differs from session start
+    }
+
+    [JsonIgnore]
+    public NoteState State { get; set; } = NoteState.Normal;
 }

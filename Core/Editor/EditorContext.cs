@@ -32,9 +32,9 @@ public partial class EditorContext : Node
     public bool IsEditMode => !IsPlaying; // Edit enabled when paused
     
     // Editor settings
-    public float SnapInterval { get; set; } = 0.25f; // 1/4 note
-    public float ScrollSpeed { get; set; } = 500.0f; // Pixels per second
-    public float SnapPrecision { get; set; } = 0.05f; // User defined precision
+    [Export] public float SnapInterval { get; set; } = 0.25f; // 1/4 note
+    [Export] public float ScrollSpeed { get; set; } = 500.0f; // Pixels per second
+    [Export] public float SnapPrecision { get; set; } = 0.05f; // User defined precision
     
     // Selection
     private HashSet<NoteEvent> _selectedNotes = new();
@@ -55,11 +55,16 @@ public partial class EditorContext : Node
     {
         if (AudioController != null)
         {
-            float newTime = AudioController.GetTime();
-            if (Mathf.Abs(newTime - PlaybackTime) > 0.0001f)
+            // Fix Seek Bug: Only update time from AudioController if it's actually playing.
+            // If paused, we trust the PlaybackTime set by Seek().
+            if (AudioController.IsPlaying)
             {
-                PlaybackTime = newTime;
-                EmitSignal(SignalName.PlaybackTimeUpdated, PlaybackTime);
+                float newTime = AudioController.GetTime();
+                if (Mathf.Abs(newTime - PlaybackTime) > 0.0001f)
+                {
+                    PlaybackTime = newTime;
+                    EmitSignal(SignalName.PlaybackTimeUpdated, PlaybackTime);
+                }
             }
         }
     }
@@ -105,6 +110,11 @@ public partial class EditorContext : Node
     }
     
     public bool IsSelected(NoteEvent note) => _selectedNotes.Contains(note);
+    
+    public void RefreshSelectionUI()
+    {
+        OnSelectionChanged?.Invoke();
+    }
     
     public void HandleMarqueeSelection(IEnumerable<NoteEvent> targetedNotes)
     {
@@ -160,9 +170,13 @@ public partial class EditorContext : Node
                     Time = note.Time, 
                     Lane = note.Lane, 
                     Duration = note.Duration,
-                    Pitch = note.Pitch
+                    Pitch = note.Pitch,
+                    Source = note.Source,
+                    State = NoteEvent.NoteState.Normal // Snapshot is always Normal basis
                 };
             }
+            // Mark Current as Dirty
+            note.State = NoteEvent.NoteState.Dirty;
         }
     }
     
@@ -172,35 +186,63 @@ public partial class EditorContext : Node
         return note; // If no snapshot, current is original
     }
     
-    public void ConfirmEdit()
+    public void CommitEdits()
     {
         if (_originalSnapshot.Count > 0)
         {
-            GD.Print($"[EditorContext] Confirmed edits for {_originalSnapshot.Count} notes.");
+            GD.Print($"[EditorContext] Committing edits for {_originalSnapshot.Count} notes.");
             _originalSnapshot.Clear();
             OnSelectionChanged?.Invoke(); // Refresh UI visuals (Ghosts disappear)
         }
     }
     
+    // Revert ALL Changes
     public void CancelEdit()
     {
         if (_originalSnapshot.Count > 0)
         {
-            GD.Print($"[EditorContext] Reverting {_originalSnapshot.Count} notes.");
+            GD.Print($"[EditorContext] Reverting ALL ({_originalSnapshot.Count}) notes.");
             foreach(var kvp in _originalSnapshot)
             {
-                var current = kvp.Key;
-                var source = kvp.Value;
-                current.Time = source.Time;
-                current.Lane = source.Lane;
-                current.Duration = source.Duration;
-                current.Pitch = source.Pitch;
+                RestoreNoteState(kvp.Key, kvp.Value);
             }
             _originalSnapshot.Clear();
-            CurrentBeatmap.Sort(); // Re-sort after revert
+            CurrentBeatmap.Sort(); 
             OnSelectionChanged?.Invoke();
-            EmitSignal(SignalName.BeatmapLoaded); // Full Reset
+            EmitSignal(SignalName.BeatmapLoaded); 
         }
+    }
+    
+    // Revert Specific Notes
+    public void RevertEdits(IEnumerable<NoteEvent> targets)
+    {
+        bool changed = false;
+        foreach(var note in targets)
+        {
+            if (_originalSnapshot.TryGetValue(note, out var original))
+            {
+                RestoreNoteState(note, original);
+                _originalSnapshot.Remove(note);
+                changed = true;
+            }
+        }
+        
+        if (changed)
+        {
+            CurrentBeatmap.Sort();
+            OnSelectionChanged?.Invoke();
+            EmitSignal(SignalName.BeatmapLoaded);
+        }
+    }
+    
+    private void RestoreNoteState(NoteEvent target, NoteEvent source)
+    {
+        target.Time = source.Time;
+        target.Lane = source.Lane;
+        target.Duration = source.Duration;
+        target.Pitch = source.Pitch;
+        target.Source = source.Source;
+        target.State = NoteEvent.NoteState.Normal; // Reset to Normal
     }
 
     #endregion
@@ -210,11 +252,8 @@ public partial class EditorContext : Node
     public void LoadBeatmapJSON(string jsonContent)
     {
         CancelEdit(); // Clear any pending edits
-// ...
         try 
         {
-            // Simple deserialization using System.Text.Json
-            // Note: Requires properties to be public
             var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true };
             BeatmapData data = JsonSerializer.Deserialize<BeatmapData>(jsonContent, options);
             
@@ -242,8 +281,10 @@ public partial class EditorContext : Node
         }
         else
         {
-            // Exit Edit Mode -> Confirm changes
-            ConfirmEdit();
+            // Exit Edit Mode -> KEEP Ghosts (Persistence)
+            // Dirty notes stay Dirty until manually Applied.
+            // This ensures visuals persist during playback.
+            
             ClearSelection();
             AudioController.Resume();
         }

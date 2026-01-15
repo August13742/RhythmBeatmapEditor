@@ -122,4 +122,15 @@ public partial class EditorAudioController : Node
         // but simple GetPlaybackPosition is often enough for editor resolution unless extremely low latency is needed.
         return _player.GetPlaybackPosition();
     }
+    
+    public void PlayOneShot(AudioStream stream)
+    {
+        if (stream == null) return;
+        var asp = new AudioStreamPlayer();
+        asp.Stream = stream;
+        asp.Bus = "Master"; // SFX usually Master or separate bus
+        AddChild(asp);
+        asp.Finished += () => asp.QueueFree();
+        asp.Play();
+    }
 }

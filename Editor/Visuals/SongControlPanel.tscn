@@ -37,6 +37,12 @@ layout_mode = 2
 focus_mode = 0
 text = "<< 5s"
 
+[node name="BtnRewind1" type="Button" parent="VBoxContainer/Controls" unique_id=621428127]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "<< 1s"
+
 [node name="BtnPlay" type="Button" parent="VBoxContainer/Controls" unique_id=1393166166]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(40, 0)
@@ -45,6 +51,12 @@ focus_mode = 0
 icon = ExtResource("3_m76mi")
 icon_alignment = 1
 expand_icon = true
+
+[node name="BtnForward1" type="Button" parent="VBoxContainer/Controls" unique_id=1229667149]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "1s >>"
 
 [node name="BtnForward" type="Button" parent="VBoxContainer/Controls" unique_id=1229667148]
 unique_name_in_owner = true
@@ -67,6 +79,13 @@ unique_name_in_owner = true
 layout_mode = 2
 text = "PLAYING"
 
+[node name="BtnRevertAll" type="Button" parent="VBoxContainer/Controls" unique_id=303102222]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+theme_override_colors/font_color = Color(1, 0.4, 0.4, 1)
+text = "Revert All"
+
 [node name="SliderProgress" type="HSlider" parent="VBoxContainer" unique_id=1197828539]
 unique_name_in_owner = true
 layout_mode = 2
@@ -84,15 +103,108 @@ layout_mode = 2
 layout_mode = 2
 text = "Selected Note Timing:"
 
-[node name="SpinTime" type="SpinBox" parent="VBoxContainer/Inspector" unique_id=1532937756]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(100, 0)
+[node name="TimeControls" type="HBoxContainer" parent="VBoxContainer/Inspector"]
 layout_mode = 2
-step = 0.001
-allow_greater = true
+alignment = 1
 
-[node name="BtnApply" type="Button" parent="VBoxContainer/Inspector" unique_id=1715710219]
+[node name="BtnTimeMinusBig" type="Button" parent="VBoxContainer/Inspector/TimeControls"]
 unique_name_in_owner = true
 layout_mode = 2
 focus_mode = 0
-text = "Apply Change"
+text = "-0.05"
+
+[node name="BtnTimeMinusSmall" type="Button" parent="VBoxContainer/Inspector/TimeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "-0.01"
+
+[node name="LblInspectorTime" type="Label" parent="VBoxContainer/Inspector/TimeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0.000"
+
+[node name="BtnTimePlusSmall" type="Button" parent="VBoxContainer/Inspector/TimeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "+0.01"
+
+[node name="BtnTimePlusBig" type="Button" parent="VBoxContainer/Inspector/TimeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "+0.05"
+
+[node name="Label2" type="Label" parent="VBoxContainer/Inspector" unique_id=2005309098]
+layout_mode = 2
+text = "Pitch (MIDI):"
+
+[node name="PitchControls" type="HBoxContainer" parent="VBoxContainer/Inspector"]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnPitchMinusOct" type="Button" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "-12"
+
+[node name="BtnPitchMinus" type="Button" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "-1"
+
+[node name="LblInspectorPitch" type="Label" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "60"
+
+[node name="BtnPitchPlus" type="Button" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "+1"
+
+[node name="BtnPitchPlusOct" type="Button" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "+12"
+
+[node name="InspectorActions" type="HBoxContainer" parent="VBoxContainer/Inspector" unique_id=1532937758]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnPlaySFX" type="Button" parent="VBoxContainer/Inspector/InspectorActions" unique_id=1715710220]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Play SFX"
+
+[node name="BtnRevertSelected" type="Button" parent="VBoxContainer/Inspector/InspectorActions" unique_id=1715710221]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Revert"
+
+[node name="BtnApply" type="Button" parent="VBoxContainer/Inspector/InspectorActions" unique_id=1715710219]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Apply"
+
+
+
+[node name="ConfirmRevert" type="ConfirmationDialog" parent="." unique_id=1715710222]
+unique_name_in_owner = true
+title = "Confirm Revert"
+initial_position = 2
+size = Vector2i(300, 100)
+ok_button_text = "Yes, Revert All"
+cancel_button_text = "Cancel"
+dialog_text = "Are you sure you want to revert ALL unsaved changes in this session?"

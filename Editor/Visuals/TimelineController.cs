@@ -12,9 +12,12 @@ namespace RhythmBeatmapEditor.Editor.Visuals
     {
         // --- Configuration ---
         [Export] public float PixelsPerSecond { get; set; } = 600f;
-        [Export] public float LookAheadTime { get; set; } = 3.0f;
+        [Export] public float LookAheadTime { get; set; } = 5.0f; // Seconds ahead to spawn
         [Export] public float HitLineOffset { get; set; } = 100f;
 
+        [ExportCategory("Editing")]
+        [Export] public float SnapPrecision { get; set; } = 0.05f;
+        
         // --- Internal References ---
         private Control _laneContainer;
         private Control _noteLayer;
@@ -80,6 +83,13 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         public override void _Process(double delta)
         {
             if (_context == null) return;
+            
+            // Sync settings
+            if (Mathf.Abs(_context.SnapPrecision - SnapPrecision) > 0.0001f)
+            {
+                _context.SnapPrecision = SnapPrecision;
+            }
+            
             Tick(_context.PlaybackTime);
         }
 
@@ -162,12 +172,9 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 _marqueeVisual.Visible = true;
                 _marqueeVisual.Position = _marqueeStart;
                 _marqueeVisual.Size = Vector2.Zero;
-                
-                // If not Add Mode, Clear Selection first?
-                // Standard: Click on empty = Deselect.
-                // User Request: Do NOT deselect on empty click.
+
                 bool isMulti = Input.IsKeyPressed(Key.Ctrl) || Input.IsKeyPressed(Key.Shift);
-                // if (!isMulti) _context.ClearSelection(); // Disabled per user request
+                // if (!isMulti) _context.ClearSelection();
             }
             else if (_isMarqueeDragging)
             {
@@ -196,11 +203,6 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         // Check intersections with active visuals
         foreach(var kvp in _activeVisuals)
         {
-            // Note: Visual rect is local to TimelineController?
-            // kvp.Value (NoteObject) position is local to TimelineController.
-            // NoteObject size is determined by its box.
-            // Let's use get_rect().
-            // BUT: NoteObject is a Control.
             Rect2 noteRect = kvp.Value.GetRect();
             if (selectionRect.Intersects(noteRect))
             {
@@ -253,21 +255,14 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 if (_context != null)
                 {
                     var original = _context.GetOriginal(data);
-                    if (original != data)
+                    
+                    // Show Ghost only if:
+                    // 1. Snapshot exists (original != data)
+                    // 2. Note is actually Dirty (Unconfirmed edit)
+                    if (original != data && data.State == NoteEvent.NoteState.Dirty)
                     {
                          float origDiff = original.Time - time;
                          float origY = hitY - (origDiff * pps);
-                         
-                         // Offset relative to current position (which is yPos - h)
-                         // Wait, NoteObject content is relative to TopLeft.
-                         // GhostRect is FullRect inside NoteObject.
-                         // Position of NoteObject is at (localX, yPos - h).
-                         // Top of Note is yPos-h. Bottom is yPos.
-                         // Original Top is origY - h.
-                         // We want GhostRect to appear at Original Top.
-                         // Offset = OriginalTop - CurrentTop.
-                         //       = (origY - h) - (yPos - h) = origY - yPos.
-                         
                          float offsetY = origY - yPos;
                          
                          vis.SetGhostState(true);
@@ -309,7 +304,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 // However, commonly, clicking a single note in a group *selects only that note* unless dragging.
                 // Logic: MouseDown just sets potential; MouseUp confirms?
                 // For now: Simple Exclusive Select if not modifier. 
-                // BUT: If I have 10 notes selected, and I click ONE to drag, I don't want to deselect others yet.
+                // BUT: If we have 10 notes selected, and we click ONE to drag, we don't want to deselect others yet.
                 // Standard Logic: 
                 // - Click on Unselected: Select Exclusive.
                 // - Click on Selected: Do nothing (wait for Drag or Up). 
@@ -337,16 +332,34 @@ namespace RhythmBeatmapEditor.Editor.Visuals
              // 1. Update Unsnapped Time (Inverted Y)
              float pps = _context?.ScrollSpeed ?? PixelsPerSecond;
              float timeDelta = -delta.Y / pps;
+             // 1. Accumulate Input
              _unsnappedDragTime += timeDelta;
              
-             // 2. Calculate Snapped Target
-             float snappedTarget = _context.SnapTime(_unsnappedDragTime);
-             if (snappedTarget < 0) snappedTarget = 0;
+             // 2. Calculate Snapped Target (Relative to ORIGINAL position)
+             // This prevents "fighting" the grid if the note was placed off-grid (e.g. 5.12)
+             // It ensures we move in increments of SnapPrecision (e.g. +0.05 -> 5.17)
+             
+             var original = _context.GetOriginal(source.Data);
+             float baseTime = original.Time;
+             float rawDelta = _unsnappedDragTime - baseTime; 
+             
+             // If we didn't capture properly (e.g. drag started before snapshot logic?), fallback to current.
+             // Note: _unsnappedDragTime was initialised to source.Data.Time (which IS original at start).
+             
+             float precision = _context.SnapPrecision;
+             if (precision <= 0.0001f) precision = 0.01f; // Safety
+             
+             // Round delta to nearest precision
+             float snappedDelta = Mathf.Round(rawDelta / precision) * precision;
+             
+             float currentLeadTime = source.Data.Time;
+             float targetTime = baseTime + snappedDelta; // Target Absolute Time
+             
+             if (targetTime < 0) targetTime = 0;
              
              // 3. Apply Difference to All Selected Notes
-             // We calculate the delta required to move the LEAD note to the target.
-             float currentLeadTime = source.Data.Time;
-             float moveDelta = snappedTarget - currentLeadTime;
+             // MoveDelta is difference between Target and Current
+             float moveDelta = targetTime - currentLeadTime;
              
              if (Mathf.Abs(moveDelta) > 0.000001f)
              {
@@ -354,6 +367,13 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                  {
                      note.Time += moveDelta;
                      if (note.Time < 0) note.Time = 0;
+                     
+                     // Ensure Snapshot exists for all notes involved (handled by CaptureSnapshot at drag start)
+                     if (note.State != NoteEvent.NoteState.Dirty)
+                     {
+                          // If drag logic didn't capture this note (e.g. multi-select expanded?), catch it.
+                          // But we trust HandleNoteDrag initialization.
+                     }
                  }
              }
 
@@ -383,11 +403,10 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             // 2. Notify Change
             // _context.NotifyNotesUpdated()?
             // For now, toggle selection to refresh UI?
-            _context.SelectNote(source.Data, false); // Hack: Re-select to trigger UI?
-            // Actually, OnSelectionChanged fires even if set matches?
-            // My implementation of SelectNote: _selectedNotes.Add... returns bool? 
-            // invoke is called.
-            _context.SelectNote(source.Data, true);
+            // 2. Notify Change
+            // Just trigger OnSelectionChanged to refresh UI (e.g. Inspector values)
+            // We do NOT want to change the selection (Keep multi-selection if active)
+            _context.RefreshSelectionUI();
         }
         
 
@@ -399,7 +418,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             
             foreach(var kvp in _activeVisuals)
             {
-                // Optimization: HashSet lookup
+                // Optimisation: HashSet lookup
                 bool isSelected = _context.IsSelected(kvp.Key);
                 kvp.Value.SetSelectState(isSelected);
             }
