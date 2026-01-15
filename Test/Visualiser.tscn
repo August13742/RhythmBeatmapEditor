@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://57yv48lyutsu"]
 
 [ext_resource type="Script" uid="uid://dt04sm6hqrvlw" path="res://MapController.cs" id="1_71ux2"]
-[ext_resource type="PackedScene" uid="uid://dwsbi6vi475hi" path="res://UI/TimelineView.tscn" id="2_xklu0"]
+[ext_resource type="PackedScene" uid="uid://dwsbi6vi475hi" path="res://Editor/Visuals/TimelineView.tscn" id="2_xklu0"]
 
 [node name="VisualiserMain" type="Node" unique_id=1065567127 node_paths=PackedStringArray("TimelineUI")]
 script = ExtResource("1_71ux2")

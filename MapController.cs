@@ -15,7 +15,7 @@ namespace RhythmBeatmapEditor
         
         // Paths (Hardcoded for prototype)
         private const string TEST_SONG_PATH_RELATIVE = "res://TestData/Music/betelgeuse.mp3";
-        private const string TEST_MAP_PATH_RELATIVE = "res://TestData/Beatmap/NORMAL.json";
+        private const string TEST_MAP_PATH_RELATIVE = "res://TestData/Beatmap/HARD.json";
         private int _noteIndex = 0;
         private Dictionary<string, SFXResource> _synthBank = new();
 
@@ -43,6 +43,12 @@ namespace RhythmBeatmapEditor
             _context = new EditorContext { Name = "EditorContext", ScrollSpeed = 600f };
             AddChild(_context);
 
+            // Connect Signals
+            _context.BeatmapLoaded += OnBeatmapLoaded; 
+
+            // 1.5 Setup UI Overlays (Song Control Panel)
+            SetupHUD();
+
             // 2. Load Content
             CallDeferred(nameof(LoadContent));
         }
@@ -62,14 +68,38 @@ namespace RhythmBeatmapEditor
             {
                 string json = File.ReadAllText(absMapPath);
                 _context.LoadBeatmapJSON(json);
-                
-                BakeSynthBank();
-                TimelineUI.Initialise(_context.CurrentBeatmap);
             }
             else
             {
                 GD.PrintErr($"[Error] Map not found: {absMapPath}");
             }
+        }
+        
+        private void SetupHUD()
+        {
+            var layer = new CanvasLayer { Name = "HUDLayer", Layer = 10 };
+            AddChild(layer);
+            
+            // Load from Scene
+            var scene = GD.Load<PackedScene>("res://Editor/Visuals/SongControlPanel.tscn");
+            var panel = scene.Instantiate<SongControlPanel>();
+            panel.Name = "SongControlPanel";
+            layer.AddChild(panel);
+            
+            // Layout: Top Bar with some padding
+            panel.SetAnchorsPreset(Control.LayoutPreset.TopWide);
+            panel.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
+            panel.Position = new Vector2(0, 0); 
+            panel.CustomMinimumSize = new Vector2(0, 60); 
+            
+            // Initialize
+            panel.Initialise(_context);
+        }
+        
+        private void OnBeatmapLoaded()
+        {
+             BakeSynthBank();
+             TimelineUI.Initialise(_context); 
         }
 
         public override void _Process(double delta)

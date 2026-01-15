@@ -1,0 +1,98 @@
+[gd_scene format=3 uid="uid://08h24ixt4lfm"]
+
+[ext_resource type="Script" uid="uid://bkuqs0yqtt1t2" path="res://Editor/Visuals/SongControlPanel.cs" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://b4wtguq8qv6uc" path="res://UI/Asset 84@2x.png" id="2_nrhlm"]
+[ext_resource type="Texture2D" uid="uid://dej055ccvqg3o" path="res://UI/Asset 80@2x.png" id="3_m76mi"]
+[ext_resource type="Texture2D" uid="uid://cyadaybrq2eqy" path="res://UI/Asset 83@2x.png" id="4_ydk87"]
+
+[node name="SongControlPanel" type="PanelContainer" unique_id=974270446]
+anchors_preset = 10
+anchor_right = 1.0
+offset_bottom = 68.0
+grow_horizontal = 2
+script = ExtResource("1_script")
+IconPlay = ExtResource("2_nrhlm")
+IconPause = ExtResource("3_m76mi")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=99985569]
+layout_mode = 2
+
+[node name="Controls" type="HBoxContainer" parent="VBoxContainer" unique_id=1810114340]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="BtnBack" type="Button" parent="VBoxContainer/Controls" unique_id=1557671509]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 0
+focus_mode = 0
+text = "      "
+icon = ExtResource("4_ydk87")
+icon_alignment = 1
+expand_icon = true
+
+[node name="BtnRewind" type="Button" parent="VBoxContainer/Controls" unique_id=621428126]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "<< 5s"
+
+[node name="BtnPlay" type="Button" parent="VBoxContainer/Controls" unique_id=1393166166]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+focus_mode = 0
+icon = ExtResource("3_m76mi")
+icon_alignment = 1
+expand_icon = true
+
+[node name="BtnForward" type="Button" parent="VBoxContainer/Controls" unique_id=1229667148]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "5s >>"
+
+[node name="LblTime" type="Label" parent="VBoxContainer/Controls" unique_id=909780138]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "00:00"
+
+[node name="Control" type="Control" parent="VBoxContainer/Controls"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="LblMode" type="Label" parent="VBoxContainer/Controls" unique_id=303102221]
+unique_name_in_owner = true
+layout_mode = 2
+text = "PLAYING"
+
+[node name="SliderProgress" type="HSlider" parent="VBoxContainer" unique_id=1197828539]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer" unique_id=764176460]
+layout_mode = 2
+
+[node name="Inspector" type="VBoxContainer" parent="VBoxContainer" unique_id=1217724668]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/Inspector" unique_id=2005309097]
+layout_mode = 2
+text = "Selected Note Timing:"
+
+[node name="SpinTime" type="SpinBox" parent="VBoxContainer/Inspector" unique_id=1532937756]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+step = 0.001
+allow_greater = true
+
+[node name="BtnApply" type="Button" parent="VBoxContainer/Inspector" unique_id=1715710219]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "Apply Change"
