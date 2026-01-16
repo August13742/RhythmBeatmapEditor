@@ -10,7 +10,8 @@ namespace RhythmBeatmapEditor
     public partial class MapController : Node
     {
         [Export] public TimelineController TimelineUI { get; set; }
-
+        [Export] public NoteInspector Inspector { get; set; }
+        [Export] public SongControlPanel SongPanel{get;private set;}
         private EditorContext _context;
         
         // Paths (Hardcoded for prototype)
@@ -50,7 +51,7 @@ namespace RhythmBeatmapEditor
             AddChild(_synth); 
 
             // 1.5 Setup UI Overlays (Song Control Panel)
-            SetupHUD();
+            if(SongPanel == null) SetupHUD();
 
             // 2. Load Content
             CallDeferred(nameof(LoadContent));
@@ -103,6 +104,7 @@ namespace RhythmBeatmapEditor
         {
              _synth.Bake(_context.CurrentBeatmap);
              TimelineUI.Initialise(_context); 
+             Inspector?.Initialise(_context); 
         }
 
         public override void _Process(double delta)

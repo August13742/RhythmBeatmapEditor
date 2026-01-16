@@ -1,0 +1,129 @@
+[gd_scene format=3 uid="uid://c8d24ixt4lfm"]
+
+[ext_resource type="Script" path="res://Editor/Visuals/NoteInspector.cs" id="1_script"]
+
+[node name="NoteInspector" type="PanelContainer"]
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -300.0
+grow_horizontal = 0
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="LabelTitle" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Note Inspector"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
+
+[node name="Inspector" type="VBoxContainer" parent="VBoxContainer" unique_id=1217724668]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/Inspector" unique_id=2005309097]
+layout_mode = 2
+text = "Selected Note Timing:"
+
+[node name="TimeControls" type="HBoxContainer" parent="VBoxContainer/Inspector"]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnTimeMinusBig" type="Button" parent="VBoxContainer/Inspector/TimeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "-0.05"
+
+[node name="BtnTimeMinusSmall" type="Button" parent="VBoxContainer/Inspector/TimeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "-0.01"
+
+[node name="LblInspectorTime" type="Label" parent="VBoxContainer/Inspector/TimeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "0.000"
+
+[node name="BtnTimePlusSmall" type="Button" parent="VBoxContainer/Inspector/TimeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "+0.01"
+
+[node name="BtnTimePlusBig" type="Button" parent="VBoxContainer/Inspector/TimeControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "+0.05"
+
+[node name="Label2" type="Label" parent="VBoxContainer/Inspector" unique_id=2005309098]
+layout_mode = 2
+text = "Pitch (MIDI):"
+
+[node name="PitchControls" type="HBoxContainer" parent="VBoxContainer/Inspector"]
+layout_mode = 2
+alignment = 1
+
+[node name="BtnPitchMinusOct" type="Button" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "-12"
+
+[node name="BtnPitchMinus" type="Button" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "-1"
+
+[node name="LblInspectorPitch" type="Label" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "60"
+
+[node name="BtnPitchPlus" type="Button" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "+1"
+
+[node name="BtnPitchPlusOct" type="Button" parent="VBoxContainer/Inspector/PitchControls"]
+unique_name_in_owner = true
+layout_mode = 2
+focus_mode = 0
+text = "+12"
+
+[node name="InspectorActions" type="HBoxContainer" parent="VBoxContainer/Inspector" unique_id=1532937758]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="BtnPlaySFX" type="Button" parent="VBoxContainer/Inspector/InspectorActions" unique_id=1715710220]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Play SFX"
+
+[node name="BtnRevertSelected" type="Button" parent="VBoxContainer/Inspector/InspectorActions" unique_id=1715710221]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Revert"
+
+[node name="BtnApply" type="Button" parent="VBoxContainer/Inspector/InspectorActions" unique_id=1715710219]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+text = "Apply"
