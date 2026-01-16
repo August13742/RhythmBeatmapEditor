@@ -24,7 +24,7 @@ public partial class EditorAudioController : Node
         set => _player.PitchScale = value;
     }
 
-    public bool IsPlaying => _player.Playing;
+    public bool IsPlaying => _player.Playing && !_player.StreamPaused;
 
     public override void _Ready()
     {

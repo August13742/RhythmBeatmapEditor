@@ -62,6 +62,21 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             OnSelectionChanged();
         }
         
+        private bool _isEditMode = true;
+        public void SetEditMode(bool enabled)
+        {
+            _isEditMode = enabled;
+            if (!enabled)
+            {
+                _inspectorContainer.Visible = false;
+            }
+            else
+            {
+                // Restore visibility if selected
+                OnSelectionChanged();
+            }
+        }
+        
         public override void _ExitTree()
         {
             if (_context != null)
@@ -110,6 +125,11 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         private void OnSelectionChanged()
         {
             if (_context == null) return;
+            if (!_isEditMode) 
+            {
+                _inspectorContainer.Visible = false;
+                return;
+            }
             
             var notes = _context.SelectedNotes;
             if (notes.Count > 0)

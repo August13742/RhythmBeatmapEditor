@@ -15,6 +15,7 @@ public partial class EditorContext : Node
     [Signal] public delegate void PlaybackTimeUpdatedEventHandler(float time);
     [Signal] public delegate void BeatmapLoadedEventHandler();
     [Signal] public delegate void NoteUpdatedEventHandler(); 
+    [Signal] public delegate void ModeChangedEventHandler(bool isEditMode); 
     
     #endregion
 
@@ -243,6 +244,7 @@ public partial class EditorContext : Node
         {
             AudioController.Pause();
             // Enter Edit Mode implicitly
+            EmitSignal(SignalName.ModeChanged, true);
         }
         else
         {
@@ -250,13 +252,15 @@ public partial class EditorContext : Node
             // Dirty notes stay Dirty until manually Applied.
             // This ensures visuals persist during playback.
             
-            ClearSelection();
-            AudioController.Resume();
+            AudioController.Play(PlaybackTime);
+            // AudioController.Resume(); // Replaced with Play(time) for robust sync
+            EmitSignal(SignalName.ModeChanged, false);
         }
     }
     
     public void Seek(float time)
     {
+        // GD.Print($"[Context] Seek Request: {time}");
         AudioController.Seek(time);
         PlaybackTime = time;
         EmitSignal(SignalName.PlaybackTimeUpdated, PlaybackTime);

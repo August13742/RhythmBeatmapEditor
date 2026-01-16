@@ -11,6 +11,7 @@ namespace RhythmBeatmapEditor
     {
         [Export] public TimelineController TimelineUI { get; set; }
         [Export] public NoteInspector Inspector { get; set; }
+        [Export] public EditorStateManager StateManager { get; set; }
         [Export] public SongControlPanel SongPanel{get;private set;}
         private EditorContext _context;
         
@@ -105,6 +106,8 @@ namespace RhythmBeatmapEditor
              _synth.Bake(_context.CurrentBeatmap);
              TimelineUI.Initialise(_context); 
              Inspector?.Initialise(_context); 
+             StateManager?.Initialise(_context); 
+             SongPanel?.Initialise(_context); 
         }
 
         public override void _Process(double delta)
