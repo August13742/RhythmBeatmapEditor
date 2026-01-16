@@ -17,11 +17,15 @@ namespace RhythmBeatmapEditor.Editor.Visuals
 
         [ExportCategory("Editing")]
         [Export] public float SnapPrecision { get; set; } = 0.05f;
+
         
         // --- Internal References ---
         private Control _laneContainer;
         private Control _noteLayer;
         private List<Control> _laneAnchors = new();
+        
+        // --- Components ---
+        private TimelineInput _input;
         
         // --- Pooling System ---
         private ObjectPool<NoteObject> _notePool;
@@ -32,11 +36,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         private BeatmapData _currentMap;
         private Dictionary<NoteEvent, NoteObject> _activeVisuals = new();
         
-        // Marquee
-        private bool _isMarqueeDragging;
-        private Vector2 _marqueeStart;
-        private ColorRect _marqueeVisual;
-
+        // Marquee Visual logic moved to Input component
+        
         public override void _Ready()
         {
             // 1. Setup UI Structure (Layers, Hit Line)
@@ -45,9 +46,10 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             // 2. Setup Memory Management (Object Pool)
             SetupObjectPool();
             
-            // 3. Marquee Visual
-            _marqueeVisual = new ColorRect { Color = new Color(0.2f, 0.6f, 1.0f, 0.3f), Visible = false };
-            AddChild(_marqueeVisual);
+            // 3. Components
+            _input = new TimelineInput { Name = "TimelineInput" };
+            AddChild(_input);
+            _input.RequestMarqueeSelect += PerformMarqueeSelect;
         }
 
         public void Initialise(EditorContext context)
@@ -58,6 +60,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
 
             _context = context;
             _currentMap = context.CurrentBeatmap;
+            
+            _input.Initialise(context, this, _noteLayer, PixelsPerSecond);
 
             // Subscribe to events
              _context.OnSelectionChanged += HandleExternalSelectionInfo;
@@ -159,41 +163,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
 
         public override void _GuiInput(InputEvent @event)
     {
-        if (_context == null || !_context.IsEditMode) return;
-
-        // Marquee Selection
-        if (@event is InputEventMouseButton mb && mb.ButtonIndex == MouseButton.Left)
-        {
-            if (mb.Pressed)
-            {
-                // Start Selection
-                _isMarqueeDragging = true;
-                _marqueeStart = mb.Position;
-                _marqueeVisual.Visible = true;
-                _marqueeVisual.Position = _marqueeStart;
-                _marqueeVisual.Size = Vector2.Zero;
-
-                bool isMulti = Input.IsKeyPressed(Key.Ctrl) || Input.IsKeyPressed(Key.Shift);
-                // if (!isMulti) _context.ClearSelection();
-            }
-            else if (_isMarqueeDragging)
-            {
-                // End Selection
-                _isMarqueeDragging = false;
-                _marqueeVisual.Visible = false;
-                
-                PerformMarqueeSelect(_marqueeVisual.GetRect());
-            }
-        }
-        else if (@event is InputEventMouseMotion mm && _isMarqueeDragging)
-        {
-             // Update Visual
-             var end = mm.Position;
-             var min = new Vector2(Mathf.Min(_marqueeStart.X, end.X), Mathf.Min(_marqueeStart.Y, end.Y));
-             var max = new Vector2(Mathf.Max(_marqueeStart.X, end.X), Mathf.Max(_marqueeStart.Y, end.Y));
-             _marqueeVisual.Position = min;
-             _marqueeVisual.Size = max - min;
-        }
+        _input.HandleGuiInput(@event);
     }
     
     private void PerformMarqueeSelect(Rect2 selectionRect)
@@ -251,6 +221,19 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 vis.Position = new Vector2(localX + 2, yPos - h); 
                 vis.Size = new Vector2(w - 4, h);
                 
+                // Visual Style for Deleted Notes
+                if (data.State == NoteEvent.NoteState.Deleted)
+                {
+                    vis.Modulate = new Color(1, 0, 0, 0.5f); // Fade Red
+                    vis.SetDeltaText("DEL");
+                    vis.MouseFilter = MouseFilterEnum.Ignore; // Can't interact with deleted ghosts
+                }
+                else
+                {
+                    vis.Modulate = Colors.White;
+                    vis.MouseFilter = MouseFilterEnum.Stop;
+                }
+                
                 // Ghost Logic
                 if (_context != null)
                 {
@@ -278,136 +261,13 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             }
         }
 
-        private void HandleNoteInput(NoteObject source, InputEvent e)
-        {
-            if (_context == null || !_context.IsEditMode) return;
+        private void HandleNoteInput(NoteObject source, InputEvent e) => _input.HandleNoteInput(source, e);
+        
 
-            if (e is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left)
-            {
-                // Check modifiers
-                bool isMulti = Input.IsKeyPressed(Key.Ctrl) || Input.IsKeyPressed(Key.Shift);
-                
-                if (isMulti)
-                {
-                    _context.ToggleSelection(source.Data);
-                }
-                else
-                {
-                    if (!_context.IsSelected(source.Data))
-                    {
-                        _context.SelectNote(source.Data, true); // Exclusive select
-                    }
-                    // Else: If already selected, do nothing (drag might start)
-                }
-                
-                // Note: If we click a selected note without Ctrl, we KEEP selection (to allow drag).
-                // However, commonly, clicking a single note in a group *selects only that note* unless dragging.
-                // Logic: MouseDown just sets potential; MouseUp confirms?
-                // For now: Simple Exclusive Select if not modifier. 
-                // BUT: If we have 10 notes selected, and we click ONE to drag, we don't want to deselect others yet.
-                // Standard Logic: 
-                // - Click on Unselected: Select Exclusive.
-                // - Click on Selected: Do nothing (wait for Drag or Up). 
-                // - Up on Selected (no drag, no mod): Select Exclusive. 
-                // For prototype: Just keep it simple. If not selected, Select Exclusive.
-            }
-        }
         
-        // Drag State
-        private float _unsnappedDragTime;
-        private NoteEvent _dragLeadNote;
+        private void HandleNoteDrag(NoteObject source, Vector2 delta) => _input.HandleNoteDrag(source, delta);
         
-        private void HandleNoteDrag(NoteObject source, Vector2 delta)
-        {
-             if (_context == null || source == null || !_context.IsEditMode) return;
-             
-             // Initialize Drag State if new drag
-             if (_dragLeadNote != source.Data)
-             {
-                 _dragLeadNote = source.Data;
-                 _unsnappedDragTime = source.Data.Time;
-                 _context.CaptureSnapshot(_context.SelectedNotes);
-             }
-             
-             // 1. Update Unsnapped Time (Inverted Y)
-             float pps = _context?.ScrollSpeed ?? PixelsPerSecond;
-             float timeDelta = -delta.Y / pps;
-             // 1. Accumulate Input
-             _unsnappedDragTime += timeDelta;
-             
-             // 2. Calculate Snapped Target (Relative to ORIGINAL position)
-             // This prevents "fighting" the grid if the note was placed off-grid (e.g. 5.12)
-             // It ensures we move in increments of SnapPrecision (e.g. +0.05 -> 5.17)
-             
-             var original = _context.GetOriginal(source.Data);
-             float baseTime = original.Time;
-             float rawDelta = _unsnappedDragTime - baseTime; 
-             
-             // If we didn't capture properly (e.g. drag started before snapshot logic?), fallback to current.
-             // Note: _unsnappedDragTime was initialised to source.Data.Time (which IS original at start).
-             
-             float precision = _context.SnapPrecision;
-             if (precision <= 0.0001f) precision = 0.01f; // Safety
-             
-             // Round delta to nearest precision
-             float snappedDelta = Mathf.Round(rawDelta / precision) * precision;
-             
-             float currentLeadTime = source.Data.Time;
-             float targetTime = baseTime + snappedDelta; // Target Absolute Time
-             
-             if (targetTime < 0) targetTime = 0;
-             
-             // 3. Apply Difference to All Selected Notes
-             // MoveDelta is difference between Target and Current
-             float moveDelta = targetTime - currentLeadTime;
-             
-             if (Mathf.Abs(moveDelta) > 0.000001f)
-             {
-                 foreach(var note in _context.SelectedNotes)
-                 {
-                     note.Time += moveDelta;
-                     if (note.Time < 0) note.Time = 0;
-                     
-                     // Ensure Snapshot exists for all notes involved (handled by CaptureSnapshot at drag start)
-                     if (note.State != NoteEvent.NoteState.Dirty)
-                     {
-                          // If drag logic didn't capture this note (e.g. multi-select expanded?), catch it.
-                          // But we trust HandleNoteDrag initialization.
-                     }
-                 }
-             }
-
-             // 3. Selection Update?
-             // Context selection didn't change (same objects), but their Property changed.
-             // We need to refresh Inspector if open.
-             // We can fire a custom signal or just let `_Process` update?
-             // SongControlPanel logic specifically listens to SelectionChanged.
-             // It doesn't listen to "Time Changed" on note.
-             // We might need to manually trigger update?
-             // Since we have "Edit Session" later, let's leave this for now.
-             // The visual position update happens in Tick/Process automatically because `Data.Time` changed.
-        }
-        
-        private void HandleNoteDragEnd(NoteObject source)
-        {
-            if (_context == null) return;
-            
-            GD.Print($"[Editor] Drag End. New Time: {source.Data.Time}");
-            // Reset Drag State
-            _dragLeadNote = null;
-            _unsnappedDragTime = 0;
-            
-            // 1. Sort Data (Time changed)
-            _context.CurrentBeatmap.Sort();
-            
-            // 2. Notify Change
-            // _context.NotifyNotesUpdated()?
-            // For now, toggle selection to refresh UI?
-            // 2. Notify Change
-            // Just trigger OnSelectionChanged to refresh UI (e.g. Inspector values)
-            // We do NOT want to change the selection (Keep multi-selection if active)
-            _context.RefreshSelectionUI();
-        }
+        private void HandleNoteDragEnd(NoteObject source) => _input.HandleNoteDragEnd(source);
         
 
 
@@ -501,7 +361,16 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 
                 _laneContainer.AddChild(lane);
                 _laneAnchors.Add(lane);
+                
+                // Input for Adding Notes
+                int laneIndex = i; // Closure
+                lane.GuiInput += (e) => HandleLaneInput(e, laneIndex);
             }
+        }
+        
+        private void HandleLaneInput(InputEvent @event, int laneIndex)
+        {
+             _input.HandleLaneInput(@event, laneIndex, HitLineOffset, Size.Y);
         }
 
         private Color GetLaneColor(int lane)

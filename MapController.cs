@@ -17,7 +17,7 @@ namespace RhythmBeatmapEditor
         private const string TEST_SONG_PATH_RELATIVE = "res://TestData/Music/betelgeuse.mp3";
         private const string TEST_MAP_PATH_RELATIVE = "res://TestData/Beatmap/HARD.json";
         private int _noteIndex = 0;
-        private Dictionary<string, SFXResource> _synthBank = new();
+        private Core.Audio.SynthManager _synth;
 
         public override void _Ready()
         {
@@ -45,6 +45,9 @@ namespace RhythmBeatmapEditor
 
             // Connect Signals
             _context.BeatmapLoaded += OnBeatmapLoaded; 
+            
+            _synth = new Core.Audio.SynthManager { Name = "SynthManager" };
+            AddChild(_synth); 
 
             // 1.5 Setup UI Overlays (Song Control Panel)
             SetupHUD();
@@ -60,7 +63,7 @@ namespace RhythmBeatmapEditor
             string absMapPath = ProjectSettings.GlobalizePath(TEST_MAP_PATH_RELATIVE);
             GD.Print($"[MapController] Loading Song: {absSongPath}");
             
-            // Audio (Ensure your AudioController handles absolute paths)
+            // Audio
             _context.AudioController.LoadSong(absSongPath);
             
             // Map
@@ -92,13 +95,13 @@ namespace RhythmBeatmapEditor
             panel.Position = new Vector2(0, 0); 
             panel.CustomMinimumSize = new Vector2(0, 60); 
             
-            // Initialize
+            // Initialise
             panel.Initialise(_context);
         }
         
         private void OnBeatmapLoaded()
         {
-             BakeSynthBank();
+             _synth.Bake(_context.CurrentBeatmap);
              TimelineUI.Initialise(_context); 
         }
 
@@ -129,86 +132,26 @@ namespace RhythmBeatmapEditor
                 if (note.Time <= time)
                 {
                     // Only play if we are within a reasonable window
-                    if (time - note.Time < 0.1f) PlayNoteSFX(note);
+                    if (time - note.Time < 0.1f) 
+                    {
+                         _synth.Play(note);
+                    }
                     _noteIndex++;
                 }
                 else break;
             }
         }
 
-        private void BakeSynthBank()
-        {
-            if (_context.CurrentBeatmap == null) return;
-            
-            GD.Print("[MapController] Baking Synths...");
-            var notes = _context.CurrentBeatmap.Notes;
-            
-            foreach (var note in notes)
-            {
-                float bucket = VocalSynthesiser.GetBucket(note.Duration);
-                int midi = (int)note.Pitch;
-                string source = note.Source.ToLower();
-                string key = $"{source}_{midi}_{bucket:F2}";
-                
-                if (!_synthBank.ContainsKey(key))
-                {
-                    SFXResource res = null;
-                    
-                    if (source.Contains("vocal"))
-                    {
-                        int vIdx = (midi * 13 + 7) % 5;
-                        var vowel = (VocalSynthesiser.VowelType)vIdx;
-                        res = VocalSynthesiser.GenerateVocal(midi, vowel, bucket, VocalSynthesiser.VocalCharacter.Power);
-                    }
-                    else if (source.Contains("drum"))
-                    {
-                        var type = (midi % 2 == 0) ? VocalSynthesiser.InstrumentType.Kick : VocalSynthesiser.InstrumentType.Snare;
-                        res = VocalSynthesiser.GenerateDrums(type);
-                    }
-                    else if (source.Contains("piano"))
-                    {
-                        res = VocalSynthesiser.GenerateInstrument(VocalSynthesiser.InstrumentType.Piano, midi);
-                    }
-                    else if (source.Contains("guitar"))
-                    {
-                        res = VocalSynthesiser.GenerateInstrument(VocalSynthesiser.InstrumentType.Guitar, midi, 0f);
-                    }
-                    else if (source.Contains("bass"))
-                    {
-                        res = VocalSynthesiser.GenerateInstrument(VocalSynthesiser.InstrumentType.Bass, midi);
-                    }
-                    else
-                    {
-                        res = VocalSynthesiser.GenerateInstrument(VocalSynthesiser.InstrumentType.Square, midi);
-                    }
 
-                    if (res != null && res.Clips.Length > 0)
-                    {
-                        _synthBank[key] = res;
-                    }
-                }
-            }
-            GD.Print($"[MapController] Baked {_synthBank.Count} unique sounds.");
-        }
-
-        private void PlayNoteSFX(RhythmBeatmapEditor.Core.Models.NoteEvent note)
-        {
-            float bucket = VocalSynthesiser.GetBucket(note.Duration);
-            int midi = (int)note.Pitch;
-            string source = note.Source.ToLower();
-            string key = $"{source}_{midi}_{bucket:F2}";
-            
-            if (_synthBank.TryGetValue(key, out var res))
-            {
-                // Stereo Panning
-                float pan = (note.Lane - 1.5f) / 1.5f * 0.5f; 
-                AudioManager.Instance.PlaySFX(res);
-                GD.Print($"[MapController] Hit: {key} @ {note.Time:F2}s");
-            }
-        }
         
         public override void _UnhandledInput(InputEvent @event)
         {
+            if (_context == null) return;
+
+            if (@event.IsActionPressed("editor_copy")) _context.CopySelectedNotes();
+            if (@event.IsActionPressed("editor_paste")) _context.PasteNotes();
+            if (@event.IsActionPressed("editor_delete")) _context.DeleteSelectedNotes();
+
             if (@event is InputEventKey k && k.Pressed)
             {
                 if (k.Keycode == Key.Space) _context.TogglePlay();

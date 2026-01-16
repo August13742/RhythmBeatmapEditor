@@ -62,7 +62,8 @@ public class NoteEvent
     {
         Normal,
         Dirty,  // Edited but not confirmed (Paused)
-        Edited  // Confirmed (Played), but differs from session start
+        Edited, // Confirmed (Played), but differs from session start
+        Deleted // Marked for deletion (Ghost)
     }
 
     [JsonIgnore]

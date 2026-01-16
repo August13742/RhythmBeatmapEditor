@@ -2,8 +2,7 @@ using Godot;
 using System.Collections.Generic;
 using RhythmBeatmapEditor.Core.Models;
 using RhythmBeatmapEditor.AudioSystem;
-using System.Text.Json; // For simple JSON parsing
-
+using System.Text.Json;
 namespace RhythmBeatmapEditor.Core.Editor;
 
 /// <summary>
@@ -35,10 +34,17 @@ public partial class EditorContext : Node
     [Export] public float SnapInterval { get; set; } = 0.25f; // 1/4 note
     [Export] public float ScrollSpeed { get; set; } = 500.0f; // Pixels per second
     [Export] public float SnapPrecision { get; set; } = 0.05f; // User defined precision
+    [Export] public int MaxLanes { get; set; } = 4; // Configurable lane limit
     
-    // Selection
-    private HashSet<NoteEvent> _selectedNotes = new();
-    public IReadOnlyCollection<NoteEvent> SelectedNotes => _selectedNotes;
+    // Components
+    public EditorSelection Selection { get; private set; }
+    public EditorHistory History { get; private set; }
+    
+    // Facade Properties
+    public IReadOnlyCollection<NoteEvent> SelectedNotes => Selection.SelectedNotes;
+    
+    // Clipboard
+    private List<NoteEvent> _clipboard = new();
     
     public event System.Action OnSelectionChanged;
     
@@ -49,6 +55,14 @@ public partial class EditorContext : Node
         // Initialize sub-systems
         AudioController = new EditorAudioController();
         AddChild(AudioController);
+        
+        Selection = new EditorSelection { Name = "EditorSelection" };
+        AddChild(Selection);
+        Selection.OnSelectionChanged += () => OnSelectionChanged?.Invoke();
+        
+        History = new EditorHistory { Name = "EditorHistory" };
+        AddChild(History);
+        History.OnHistoryChanged += () => OnSelectionChanged?.Invoke(); // Refresh UI on history undo
     }
 
     public override void _Process(double delta)
@@ -69,183 +83,134 @@ public partial class EditorContext : Node
         }
     }
 
-    #region API - Selection
+    #region API - Selection (Facade)
     
-    public void SelectNote(NoteEvent note, bool exclusive = true)
-    {
-        if (exclusive) 
-        {
-            _selectedNotes.Clear();
-            _selectedNotes.Add(note);
-        }
-        else
-        {
-            _selectedNotes.Add(note);
-        }
-        OnSelectionChanged?.Invoke();
-    }
+    public void SelectNote(NoteEvent note, bool exclusive = true) => Selection.Select(note, exclusive);
+    public void DeselectNote(NoteEvent note) => Selection.Deselect(note);
+    public void ToggleSelection(NoteEvent note) => Selection.Toggle(note);
+    public void ClearSelection() => Selection.Clear();
+    public bool IsSelected(NoteEvent note) => Selection.IsSelected(note);
+    public void RefreshSelectionUI() => Selection.NotifyChanged();
+    public void HandleMarqueeSelection(IEnumerable<NoteEvent> targetedNotes) => Selection.HandleMarquee(targetedNotes);
     
-    public void DeselectNote(NoteEvent note)
-    {
-        if (_selectedNotes.Remove(note))
-        {
-            OnSelectionChanged?.Invoke();
-        }
-    }
-    
-    public void ToggleSelection(NoteEvent note)
-    {
-        if (_selectedNotes.Contains(note)) _selectedNotes.Remove(note);
-        else _selectedNotes.Add(note);
-        OnSelectionChanged?.Invoke();
-    }
+    #endregion
 
-    public void ClearSelection()
-    {
-        if (_selectedNotes.Count > 0)
-        {
-            _selectedNotes.Clear();
-            OnSelectionChanged?.Invoke();
-        }
-    }
+    // Edit Session (Facade)
+    // private Dictionary<NoteEvent, NoteEvent> _originalSnapshot = new(); // Removed
     
-    public bool IsSelected(NoteEvent note) => _selectedNotes.Contains(note);
-    
-    public void RefreshSelectionUI()
-    {
-        OnSelectionChanged?.Invoke();
-    }
-    
-    public void HandleMarqueeSelection(IEnumerable<NoteEvent> targetedNotes)
-    {
-        // "Add/Toggle" Logic:
-        // 1. Identify New Notes (Targeted but NOT currently selected)
-        // 2. If present, ADD them (Merge).
-        // 3. If NO new notes (Targeting only existing selection), TOGGLE them OFF (Deselect).
-        
-        bool hasNew = false;
-        foreach(var n in targetedNotes)
-        {
-            if (!_selectedNotes.Contains(n))
-            {
-                hasNew = true;
-                break;
-            }
-        }
-        
-        bool changed = false;
-        if (hasNew)
-        {
-            // Add All
-            foreach(var n in targetedNotes)
-            {
-                if (_selectedNotes.Add(n)) changed = true;
-            }
-        }
-        else
-        {
-            // Toggle Off (Deselect)
-            foreach(var n in targetedNotes)
-            {
-                if (_selectedNotes.Remove(n)) changed = true;
-            }
-        }
-        
-        if (changed) OnSelectionChanged?.Invoke();
-    }
-    
-    // Edit Session
-    private Dictionary<NoteEvent, NoteEvent> _originalSnapshot = new();
-    
-    public void CaptureSnapshot(IEnumerable<NoteEvent> notes)
-    {
-        foreach(var note in notes)
-        {
-            if (!_originalSnapshot.ContainsKey(note))
-            {
-                // Create minimal copy (struct-like copy)
-                // NoteEvent is a class, needs explicit Clone
-                _originalSnapshot[note] = new NoteEvent 
-                { 
-                    Time = note.Time, 
-                    Lane = note.Lane, 
-                    Duration = note.Duration,
-                    Pitch = note.Pitch,
-                    Source = note.Source,
-                    State = NoteEvent.NoteState.Normal // Snapshot is always Normal basis
-                };
-            }
-            // Mark Current as Dirty
-            note.State = NoteEvent.NoteState.Dirty;
-        }
-    }
-    
-    public NoteEvent GetOriginal(NoteEvent note)
-    {
-        if (_originalSnapshot.TryGetValue(note, out var original)) return original;
-        return note; // If no snapshot, current is original
-    }
-    
-    public void CommitEdits()
-    {
-        if (_originalSnapshot.Count > 0)
-        {
-            GD.Print($"[EditorContext] Committing edits for {_originalSnapshot.Count} notes.");
-            _originalSnapshot.Clear();
-            OnSelectionChanged?.Invoke(); // Refresh UI visuals (Ghosts disappear)
-        }
-    }
+    public void CaptureSnapshot(IEnumerable<NoteEvent> notes) => History.CaptureSnapshot(notes);
+    public NoteEvent GetOriginal(NoteEvent note) => History.GetOriginal(note);
+    public void CommitEdits() => History.CommitEdits();
     
     // Revert ALL Changes
     public void CancelEdit()
     {
-        if (_originalSnapshot.Count > 0)
+        if (History.CancelEdit(CurrentBeatmap))
         {
-            GD.Print($"[EditorContext] Reverting ALL ({_originalSnapshot.Count}) notes.");
-            foreach(var kvp in _originalSnapshot)
-            {
-                RestoreNoteState(kvp.Key, kvp.Value);
-            }
-            _originalSnapshot.Clear();
-            CurrentBeatmap.Sort(); 
-            OnSelectionChanged?.Invoke();
-            EmitSignal(SignalName.BeatmapLoaded); 
+            EmitSignal(SignalName.BeatmapLoaded);
         }
     }
     
     // Revert Specific Notes
     public void RevertEdits(IEnumerable<NoteEvent> targets)
     {
-        bool changed = false;
-        foreach(var note in targets)
-        {
-            if (_originalSnapshot.TryGetValue(note, out var original))
-            {
-                RestoreNoteState(note, original);
-                _originalSnapshot.Remove(note);
-                changed = true;
-            }
-        }
-        
-        if (changed)
-        {
-            CurrentBeatmap.Sort();
-            OnSelectionChanged?.Invoke();
-            EmitSignal(SignalName.BeatmapLoaded);
-        }
+        History.RevertEdits(targets, CurrentBeatmap);
+        EmitSignal(SignalName.BeatmapLoaded);
     }
     
-    private void RestoreNoteState(NoteEvent target, NoteEvent source)
+    #region API - Editing Actions
+
+    public void DeleteSelectedNotes()
     {
-        target.Time = source.Time;
-        target.Lane = source.Lane;
-        target.Duration = source.Duration;
-        target.Pitch = source.Pitch;
-        target.Source = source.Source;
-        target.State = NoteEvent.NoteState.Normal; // Reset to Normal
+        if (Selection.SelectedNotes.Count == 0) return;
+        
+        CaptureSnapshot(Selection.SelectedNotes);
+        
+        foreach(var note in Selection.SelectedNotes)
+        {
+            note.State = NoteEvent.NoteState.Deleted;
+        }
+        
+        RefreshSelectionUI();
+    }
+    
+    public void AddNote(NoteEvent note)
+    {
+        CurrentBeatmap.Notes.Add(note);
+        CurrentBeatmap.Sort();
+        
+        // Select the new note
+        Selection.Select(note);
+        EmitSignal(SignalName.BeatmapLoaded); // Full refresh to ensure visualisation
+    }
+    
+    public void CopySelectedNotes()
+    {
+        if (Selection.SelectedNotes.Count == 0) return;
+        
+        _clipboard.Clear();
+        
+        // Find anchor (earliest note)
+        float minTime = float.MaxValue;
+        foreach(var n in Selection.SelectedNotes)
+        {
+            if (n.Time < minTime) minTime = n.Time;
+        }
+        
+        foreach(var n in Selection.SelectedNotes)
+        {
+            var clone = new NoteEvent 
+            { 
+                Time = n.Time - minTime, // Relative Time
+                Lane = n.Lane, 
+                Duration = n.Duration,
+                Pitch = n.Pitch,
+                Source = n.Source,
+                State = NoteEvent.NoteState.Normal 
+            };
+            _clipboard.Add(clone);
+        }
+        GD.Print($"[EditorContext] Copied {_clipboard.Count} notes.");
+    }
+    
+    public void PasteNotes()
+    {
+        if (_clipboard.Count == 0) return;
+        
+        Selection.Clear();
+        
+        var newNotes = new List<NoteEvent>();
+        foreach(var clip in _clipboard)
+        {
+            var note = new NoteEvent 
+            {
+                Time = PlaybackTime + clip.Time,
+                Lane = clip.Lane,
+                Duration = clip.Duration,
+                Pitch = clip.Pitch,
+                Source = clip.Source,
+                State = NoteEvent.NoteState.Normal
+            };
+            
+            // Clamp Lane
+            note.Lane = Mathf.Clamp(note.Lane, 0, MaxLanes - 1);
+            
+            CurrentBeatmap.Notes.Add(note);
+            newNotes.Add(note);
+            Selection.Select(note, false); // Add to selection
+        }
+        
+        CurrentBeatmap.Sort();
+        EmitSignal(SignalName.BeatmapLoaded);
+        RefreshSelectionUI();
+        GD.Print($"[EditorContext] Pasted {newNotes.Count} notes.");
     }
 
     #endregion
+    
+
+
+
 
     #region API - General
     
