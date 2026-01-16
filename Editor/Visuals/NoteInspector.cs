@@ -240,7 +240,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             }
             else
             {
-                 res = VocalSynthesiser.GenerateInstrument(VocalSynthesiser.InstrumentType.Piano, midi);
+                 res = VocalSynthesiser.GenerateInstrument(midi,duration:0.15f);
             }
             
             if (res != null && res.Clips.Length > 0 && res.Clips[0] != null)

@@ -12,70 +12,86 @@ namespace RhythmBeatmapEditor.Editor.Visuals
     {
         // --- Configuration ---
         [Export] public float PixelsPerSecond { get; set; } = 600f;
-        [Export] public float LookAheadTime { get; set; } = 5.0f; // Seconds ahead to spawn
+        [Export] public float LookAheadTime { get; set; } = 5.0f;
         [Export] public float HitLineOffset { get; set; } = 100f;
 
         [ExportCategory("Editing")]
         [Export] public float SnapPrecision { get; set; } = 0.05f;
+        [Export] public float NoteWidthPercent { get; set; } = 0.95f;
 
+        [ExportCategory("Scene References")]
+        [Export] public Control LaneContainer { get; private set; }
+        [Export] public Control NoteLayer { get; private set; }
+        [Export] public GhostLayer GhostLayer { get; private set; }
+        [Export] public Control HitLine { get; private set; }
         
-        // --- Internal References ---
-        private Control _laneContainer;
-        private Control _noteLayer;
-        private List<Control> _laneAnchors = new();
-        
-        // --- Components ---
+        // REPLACEMENT: Export the Scene, don't load by string UID
+        [Export] public PackedScene NoteScene { get; private set; } 
+        // OPTIONAL: If want dynamic lanes, use a Lane Scene, not raw Controls
+        [Export] public PackedScene LaneScene { get; private set; }
+
+        // --- Internal Data ---
         private TimelineInput _input;
-        
-        // --- Pooling System ---
         private ObjectPool<NoteObject> _notePool;
         private Node _poolStorage;
-        
-        // --- State ---
         private EditorContext _context;
         private BeatmapData _currentMap;
         private Dictionary<NoteEvent, NoteObject> _activeVisuals = new();
-        
-        // Marquee Visual logic moved to Input component
+
+        // --- Optimisation: Layout Cache ---
+        // We store the calculated X positions here to avoid GlobalPosition calls in Update
+        private struct LaneLayout
+        {
+            public float LocalX;
+            public float Width;
+            public Color Color;
+        }
+        private LaneLayout[] _laneCache;
+
+        // --- Optimisation: Spawning ---
+        private int _spawnStartIndex = 0;
+        private List<NoteEvent> _despawnCache = new();
+
         
         public override void _Ready()
         {
-            // 1. Setup UI Structure (Layers, Hit Line)
-            SetupInternalStructure();
+            // Validation
+            if (LaneContainer == null || NoteLayer == null || NoteScene == null)
+            {
+                GD.PrintErr("[TimelineController] Missing References.");
+                SetProcess(false);
+                return;
+            }
 
-            // 2. Setup Memory Management (Object Pool)
             SetupObjectPool();
             
-            // 3. Components
             _input = new TimelineInput { Name = "TimelineInput" };
             AddChild(_input);
             _input.RequestMarqueeSelect += PerformMarqueeSelect;
+
+            // Important: Recalculate cache if the window resizes
+            LaneContainer.Resized += RefreshLaneCache;
         }
 
         public void Initialise(EditorContext context)
         {
-            // Cleanup previous if exists
-            if (_context != null)
-                 _context.OnSelectionChanged -= HandleExternalSelectionInfo;
-
+            if (_context != null) _context.OnSelectionChanged -= HandleExternalSelectionInfo;
             _context = context;
             _currentMap = context.CurrentBeatmap;
             
-            _input.Initialise(context, this, _noteLayer, PixelsPerSecond);
+            _input.Initialise(context, this, NoteLayer, PixelsPerSecond);
+            _context.OnSelectionChanged += HandleExternalSelectionInfo;
 
-            // Subscribe to events
-             _context.OnSelectionChanged += HandleExternalSelectionInfo;
-            
-            // 1. Determine Lane Count based on map data (default to 4)
+            // 1. Setup Lanes
             int lanes = 4;
-            if (_currentMap.Notes != null && _currentMap.Notes.Count > 0) 
+            if (_currentMap.Notes.Count > 0) 
                 lanes = _currentMap.Notes.Max(n => n.Lane) + 1;
 
-            // 2. Generate Lane Anchors
-            RebuildLanes(lanes);
+            SetupLanes(lanes);
 
-            // 3. Reset State
+            // 2. Reset
             ResetVisuals();
+            _spawnStartIndex = 0;
         }
         
         public override void _ExitTree()
@@ -88,109 +104,111 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         {
             if (_context == null) return;
             
-            // Sync settings
-            if (Mathf.Abs(_context.SnapPrecision - SnapPrecision) > 0.0001f)
-            {
-                _context.SnapPrecision = SnapPrecision;
-            }
-            
+            // Re-sync HitLine visual position only if screen size changed (handled by anchors usually) or offset changed
+            // Doing this here is fine, simpler than caching
+            HitLine.Position = new Vector2(0, Size.Y - HitLineOffset);
+
             Tick(_context.PlaybackTime);
         }
 
         public void Tick(float time)
         {
             if (_currentMap == null) return;
-            
-            // A. Calculate View Window
-            float start = time - 1.0f;     // Keep notes visible 1s after hit
-            float end = time + LookAheadTime; // Spawn notes 3s early
-            
-            // B. Reconcile Visuals (Spawn/Despawn)
-            
-            // 1. Identify notes that left the window
-            // (Using a separate list to avoid modifying collection while iterating)
-            var toRemove = new List<NoteEvent>();
-            foreach(var kvp in _activeVisuals)
-            {
-                if (kvp.Key.Time < start || kvp.Key.Time > end) 
-                    toRemove.Add(kvp.Key);
-            }
-            foreach(var key in toRemove) DespawnNote(key);
 
-            // 2. Identify new notes entering the window
-            // Optimization: Since map.Notes is sorted, Binary Search would be O(log N). 
-            // LINQ Where is O(N). Acceptable for < 5000 notes.
-            var visibleNotes = _currentMap.Notes.Where(n => n.Time >= start && n.Time <= end);
-            foreach(var note in visibleNotes)
+            float start = time - 1.0f;
+            float end = time + LookAheadTime;
+
+            // 1. Despawn
+            _despawnCache.Clear();
+            foreach (var kvp in _activeVisuals)
             {
-                if (!_activeVisuals.ContainsKey(note)) SpawnNote(note);
+                if (kvp.Key.Time < start || kvp.Key.Time > end)
+                    _despawnCache.Add(kvp.Key);
+            }
+            foreach (var note in _despawnCache) DespawnNote(note);
+
+            // 2. Spawn (Your optimized logic)
+            var notes = _currentMap.Notes;
+            int count = notes.Count;
+            if (count > 0)
+            {
+                // Logic preserved from your snippet
+                while (_spawnStartIndex > 0 && notes[_spawnStartIndex].Time > start) _spawnStartIndex--;
+                while (_spawnStartIndex < count && notes[_spawnStartIndex].Time < start) _spawnStartIndex++;
+
+                for (int i = _spawnStartIndex; i < count; i++)
+                {
+                    var note = notes[i];
+                    if (note.Time > end) break;
+                    if (!_activeVisuals.ContainsKey(note)) SpawnNote(note);
+                }
             }
 
-            // C. Layout Update (Move Notes)
+            // 3. Layout Update
+            GhostLayer.Clear();
+            
+            // Cache Check: Ensure cache is valid before iterating
+            if (_laneCache == null || _laneCache.Length == 0) RefreshLaneCache();
+
             float hitY = Size.Y - HitLineOffset;
-            foreach(var kvp in _activeVisuals)
+            
+            foreach (var kvp in _activeVisuals)
             {
+                // Pass the cached array, not the Scene Nodes
                 LayoutNote(kvp.Value, kvp.Key, time, hitY);
             }
+
+            GhostLayer.Commit();
         }
         
         // --- Internal Logic ---
 
         private void SpawnNote(NoteEvent data)
         {
-            // Rent from pool (creates new if empty)
             var vis = _notePool.Rent();
-            
-            // Setup Visuals
             vis.Bind(data, GetLaneColor(data.Lane));
             vis.OnInput += HandleNoteInput;
             vis.OnDrag += HandleNoteDrag;
             vis.OnDragEnd += HandleNoteDragEnd;
             
-            // Track
             _activeVisuals[data] = vis;
             
-            // Sync selection state immediately
             if (_context != null && _context.IsSelected(data))
-            {
-                 vis.SetSelectState(true);
-            }
+                vis.SetSelectState(true);
             else
-            {
-                 vis.SetSelectState(false);
-            }
+                vis.SetSelectState(false);
         }
 
         public override void _GuiInput(InputEvent @event)
-    {
-        _input.HandleGuiInput(@event);
-    }
-    
-    private void PerformMarqueeSelect(Rect2 selectionRect)
-    {
-        var overlappingNotes = new List<NoteEvent>();
-        
-        // Check intersections with active visuals
-        foreach(var kvp in _activeVisuals)
         {
-            Rect2 noteRect = kvp.Value.GetRect();
-            if (selectionRect.Intersects(noteRect))
+            _input.HandleGuiInput(@event);
+        }
+    
+        private void PerformMarqueeSelect(Rect2 selectionRect)
+        {
+            var overlappingNotes = new List<NoteEvent>();
+            
+            // Check intersections with active visuals
+            foreach(var kvp in _activeVisuals)
             {
-                overlappingNotes.Add(kvp.Key);
+                Rect2 noteRect = kvp.Value.GetRect();
+                if (selectionRect.Intersects(noteRect))
+                {
+                    overlappingNotes.Add(kvp.Key);
+                }
+            }
+            
+            if (overlappingNotes.Count > 0)
+            {
+                 _context.HandleMarqueeSelection(overlappingNotes);
             }
         }
-        
-        if (overlappingNotes.Count > 0)
-        {
-             _context.HandleMarqueeSelection(overlappingNotes);
-        }
-    }
 
-    private void DespawnNote(NoteEvent data)
+        private void DespawnNote(NoteEvent data)
         {
             if (_activeVisuals.TryGetValue(data, out var vis))
             {
-                vis.OnInput -= HandleNoteInput; // Crucial: Unsubscribe to prevent leaks
+                vis.OnInput -= HandleNoteInput;
                 vis.OnDrag -= HandleNoteDrag;
                 vis.OnDragEnd -= HandleNoteDragEnd;
                 _notePool.Return(vis);
@@ -198,78 +216,34 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             }
         }
         
+        // --- Critical Optimization: Layout Note ---
         private void LayoutNote(NoteObject vis, NoteEvent data, float time, float hitY)
         {
-            float pps = _context?.ScrollSpeed ?? PixelsPerSecond;
-
-            // Y Position: Note moves DOWN towards hitY
+            float pps = _context.ScrollSpeed;
             float timeDiff = data.Time - time;
             float yPos = hitY - (timeDiff * pps);
-            
-            // Height: Duration scaling
             float h = Math.Max(15f, data.Duration * pps);
-            
-            // X Position: Snap to Lane
-            if (data.Lane >= 0 && data.Lane < _laneAnchors.Count)
+
+            // READ FROM CACHE. No GlobalPosition calls.
+            if (data.Lane >= 0 && data.Lane < _laneCache.Length)
             {
-                var lane = _laneAnchors[data.Lane];
+                ref var layout = ref _laneCache[data.Lane]; // Ref for slight perf boost
                 
-                // Convert Global X to Local X (relative to NoteLayer)
-                float localX = lane.GlobalPosition.X - _noteLayer.GlobalPosition.X;
-                float w = lane.Size.X;
-                
-                vis.Position = new Vector2(localX + 2, yPos - h); 
-                vis.Size = new Vector2(w - 4, h);
-                
-                // Visual Style for Deleted Notes
-                if (data.State == NoteEvent.NoteState.Deleted)
-                {
-                    vis.Modulate = new Color(1, 0, 0, 0.5f); // Fade Red
-                    vis.SetDeltaText("DEL");
-                    vis.MouseFilter = MouseFilterEnum.Ignore; // Can't interact with deleted ghosts
-                }
-                else
-                {
-                    vis.Modulate = Colors.White;
-                    vis.MouseFilter = MouseFilterEnum.Stop;
-                }
-                
-                // Ghost Logic
-                if (_context != null)
-                {
-                    var original = _context.GetOriginal(data);
-                    
-                    // Show Ghost only if:
-                    // 1. Snapshot exists (original != data)
-                    // 2. Note is actually Dirty (Unconfirmed edit)
-                    if (original != data && data.State == NoteEvent.NoteState.Dirty)
-                    {
-                         float origDiff = original.Time - time;
-                         float origY = hitY - (origDiff * pps);
-                         float offsetY = origY - yPos;
-                         
-                         vis.SetGhostState(true);
-                         vis.SetGhostOffset(new Vector2(0, offsetY));
-                         vis.SetDeltaText($"{data.Time - original.Time:+0.00;-0.00}s");
-                    }
-                    else
-                    {
-                         vis.SetGhostState(false);
-                         vis.SetDeltaText(null);
-                    }
-                }
+                float noteW = layout.Width * NoteWidthPercent; // Math is cheap
+                float padX = (layout.Width - noteW) / 2;
+
+                vis.Position = new Vector2(layout.LocalX + padX, yPos - h);
+                vis.Size = new Vector2(noteW, h);
             }
         }
 
         private void HandleNoteInput(NoteObject source, InputEvent e) => _input.HandleNoteInput(source, e);
         
-
         
         private void HandleNoteDrag(NoteObject source, Vector2 delta) => _input.HandleNoteDrag(source, delta);
         
         private void HandleNoteDragEnd(NoteObject source) => _input.HandleNoteDragEnd(source);
         
-
 
         private void HandleExternalSelectionInfo()
         {
@@ -286,7 +260,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
 
         private void ResetVisuals()
         {
-            foreach(var vis in _activeVisuals.Values)
+            foreach (var vis in _activeVisuals.Values)
             {
                 vis.OnInput -= HandleNoteInput;
                 vis.OnDrag -= HandleNoteDrag;
@@ -296,76 +270,84 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _activeVisuals.Clear();
         }
 
-        // --- Setup Helpers ---
-
-        private void SetupInternalStructure()
+        // --- Lane Cache ---
+        private void RefreshLaneCache()
         {
-            // 1. Background
-            var bg = new ColorRect { Color = new Color(0.08f, 0.08f, 0.1f) };
-            bg.SetAnchorsPreset(LayoutPreset.FullRect);
-            AddChild(bg);
-
-            // 2. Lane Container (Horizontal Layout)
-            _laneContainer = new HBoxContainer();
-            _laneContainer.SetAnchorsPreset(LayoutPreset.FullRect);
-            ((HBoxContainer)_laneContainer).AddThemeConstantOverride("separation", 2);
-            AddChild(_laneContainer);
-
-            // 3. Note Layer (Overlay)
-            _noteLayer = new Control();
-            _noteLayer.SetAnchorsPreset(LayoutPreset.FullRect);
-            _noteLayer.MouseFilter = MouseFilterEnum.Pass; // Let clicks pass through empty space
-            AddChild(_noteLayer);
+            // Wait for next frame if children aren't ready? 
+            // Usually safest to force layout update if needed, but here we just read.
             
-            // 4. Hit Line
-            var line = new ColorRect { Color = Colors.Green, CustomMinimumSize = new Vector2(0, 2) };
-            line.SetAnchorsPreset(LayoutPreset.BottomWide);
-            line.Position = new Vector2(0, -HitLineOffset);
-            AddChild(line);
+            int count = LaneContainer.GetChildCount();
+            if (_laneCache == null || _laneCache.Length != count)
+                _laneCache = new LaneLayout[count];
+
+            // Calculate relationship between LaneContainer and NoteLayer ONCE.
+            // NoteLayer is sibling or overlay, so we need relative coords.
+            float containerGlobalX = LaneContainer.GlobalPosition.X;
+            float layerGlobalX = NoteLayer.GlobalPosition.X;
+            float relativeBaseX = containerGlobalX - layerGlobalX;
+
+            for (int i = 0; i < count; i++)
+            {
+                if (LaneContainer.GetChild(i) is Control lane)
+                {
+                    // Cache the X position relative to NoteLayer
+                    _laneCache[i].LocalX = relativeBaseX + lane.Position.X;
+                    _laneCache[i].Width = lane.Size.X;
+                    _laneCache[i].Color = GetLaneColor(i);
+                }
+            }
         }
-        
+
+        private void SetupLanes(int laneCount)
+        {
+            // Check if we actually need to rebuild
+            if (LaneContainer.GetChildCount() == laneCount) return;
+
+            // Clear
+            foreach (Node n in LaneContainer.GetChildren()) n.QueueFree();
+            
+            // Rebuild
+            for (int i = 0; i < laneCount; i++)
+            {
+                Control lane;
+                // Prefer Instantiation over 'new Control'
+                if (LaneScene != null)
+                {
+                    lane = LaneScene.Instantiate<Control>();
+                }
+                else
+                {
+                    // Fallback to procedural if no scene assigned
+                    lane = new Control();
+                    var bg = new ColorRect { 
+                        Color = new Color(0.1f, 0.1f, 0.1f, i % 2 == 0 ? 0.3f : 0.2f),
+                        LayoutMode = 1, AnchorsPreset = (int)LayoutPreset.FullRect 
+                    };
+                    lane.AddChild(bg);
+                }
+                
+                lane.Name = $"Lane_{i}";
+                lane.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+                lane.GuiInput += (e) => HandleLaneInput(e, i); // Capture index
+                LaneContainer.AddChild(lane);
+            }
+            
+            // Force cache refresh next frame
+            CallDeferred(nameof(RefreshLaneCache));
+        }
+
         private void SetupObjectPool()
         {
-            // Create a hidden node to store inactive notes
             _poolStorage = new Node { Name = "PoolStorage" };
             AddChild(_poolStorage);
 
-            // Initialise Pool using Factory Pattern
-            // Since NoteObject builds its own visuals in _Ready(), we just need to "new" it.
+            // Factory uses the Exported Scene
             _notePool = new ObjectPool<NoteObject>(
-                factoryMethod: () => new NoteObject(), 
+                factoryMethod: () => NoteScene.Instantiate<NoteObject>(), 
                 prewarm: 50, 
-                activeParent: _noteLayer, 
+                activeParent: NoteLayer, 
                 inactiveParent: _poolStorage
             );
-        }
-
-        private void RebuildLanes(int laneCount)
-        {
-            // Clear existing
-            foreach(Node n in _laneContainer.GetChildren()) n.QueueFree();
-            _laneAnchors.Clear();
-
-            // Create new
-            for (int i = 0; i < laneCount; i++)
-            {
-                var lane = new Control();
-                lane.Name = $"Lane_{i}";
-                lane.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-                lane.SizeFlagsVertical = SizeFlags.ExpandFill;
-                
-                // Lane Background (Stripes)
-                var bg = new ColorRect { Color = new Color(0.1f, 0.1f, 0.1f, i % 2 == 0 ? 0.3f : 0.2f) };
-                bg.SetAnchorsPreset(LayoutPreset.FullRect);
-                lane.AddChild(bg);
-                
-                _laneContainer.AddChild(lane);
-                _laneAnchors.Add(lane);
-                
-                // Input for Adding Notes
-                int laneIndex = i; // Closure
-                lane.GuiInput += (e) => HandleLaneInput(e, laneIndex);
-            }
         }
         
         private void HandleLaneInput(InputEvent @event, int laneIndex)

@@ -3,17 +3,17 @@
 [ext_resource type="Script" uid="uid://dt04sm6hqrvlw" path="res://MapController.cs" id="1_71ux2"]
 [ext_resource type="PackedScene" uid="uid://08h24ixt4lfm" path="res://Editor/Visuals/SongControlPanel.tscn" id="2_u3e1j"]
 [ext_resource type="PackedScene" uid="uid://dwsbi6vi475hi" path="res://Editor/Visuals/TimelineView.tscn" id="2_xklu0"]
-[ext_resource type="Script" path="res://Core/Editor/EditorStateManager.cs" id="3_state"]
+[ext_resource type="Script" uid="uid://ikh5xt0ukhj3" path="res://Core/Editor/EditorStateManager.cs" id="3_state"]
 [ext_resource type="PackedScene" path="res://Editor/Visuals/NoteInspector.tscn" id="4_inspector"]
 
-[node name="VisualiserMain" type="Node" unique_id=1065567127 node_paths=PackedStringArray("TimelineUI", "Inspector", "StateManager", "SongPanel")]
+[node name="MapController" type="Node" unique_id=1065567127 node_paths=PackedStringArray("TimelineUI", "Inspector", "StateManager", "SongPanel")]
 script = ExtResource("1_71ux2")
 TimelineUI = NodePath("VBoxContainer/HBoxContainer/TimelineView")
 Inspector = NodePath("VBoxContainer/HBoxContainer/NoteInspector")
 StateManager = NodePath("EditorStateManager")
 SongPanel = NodePath("VBoxContainer/SongControlPanel")
 
-[node name="EditorStateManager" type="Node" parent="." node_paths=PackedStringArray("Inspector", "SongPanel", "Timeline")]
+[node name="EditorStateManager" type="Node" parent="." unique_id=786281662 node_paths=PackedStringArray("Inspector", "SongPanel", "Timeline")]
 script = ExtResource("3_state")
 Inspector = NodePath("../VBoxContainer/HBoxContainer/NoteInspector")
 SongPanel = NodePath("../VBoxContainer/SongControlPanel")

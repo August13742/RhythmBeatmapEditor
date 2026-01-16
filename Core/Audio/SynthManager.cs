@@ -14,9 +14,10 @@ public partial class SynthManager : Node
         _synthBank.Clear();
         var uniqueKeys = new HashSet<string>();
         
+        GD.Print("[SynthManager] Baking in Vocal + 8-bit Instrumental Mode...");
+
         foreach(var note in data.Notes)
         {
-            // Simple key generation: Source + Pitch + Duration Bucket
             float bucket = VocalSynthesiser.GetBucket(note.Duration);
             int midi = (int)note.Pitch;
             string source = note.Source.ToLower();
@@ -28,30 +29,31 @@ public partial class SynthManager : Node
                 
                 if (source.Contains("vocal"))
                 {
+                    // 1. High Quality Vocal Synthesis
                     int vIdx = (midi * 13 + 7) % 5;
+
+                    // --- HIGH PITCH FIX (Restored from Python) ---
+                    if (midi > 80) 
+                    {
+                        if (vIdx == 1) vIdx = 0; // Swap I -> A
+                        if (vIdx == 2) vIdx = 4; // Swap U -> O
+                    }
+                    // ---------------------------------------------
+
                     var vowel = (VocalSynthesiser.VowelType)vIdx;
                     res = VocalSynthesiser.GenerateVocal(midi, vowel, bucket, VocalSynthesiser.VocalCharacter.Power);
                 }
                 else if (source.Contains("drum"))
                 {
+                    // 2. 8-bit Drums (Kick/Snare)
                     var type = (midi % 2 == 0) ? VocalSynthesiser.InstrumentType.Kick : VocalSynthesiser.InstrumentType.Snare;
                     res = VocalSynthesiser.GenerateDrums(type);
                 }
-                else if (source.Contains("piano"))
-                {
-                    res = VocalSynthesiser.GenerateInstrument(VocalSynthesiser.InstrumentType.Piano, midi);
-                }
-                else if (source.Contains("guitar"))
-                {
-                    res = VocalSynthesiser.GenerateInstrument(VocalSynthesiser.InstrumentType.Guitar, midi, 0f);
-                }
-                else if (source.Contains("bass"))
-                {
-                    res = VocalSynthesiser.GenerateInstrument(VocalSynthesiser.InstrumentType.Bass, midi);
-                }
                 else
                 {
-                    res = VocalSynthesiser.GenerateInstrument(VocalSynthesiser.InstrumentType.Square, midi);
+                    // 3. All other instruments -> 8-bit Square Wave
+                    // This covers Piano, Guitar, Bass, and Other
+                    res = VocalSynthesiser.GenerateInstrument(midi, bucket);
                 }
 
                 if (res != null)
@@ -74,8 +76,7 @@ public partial class SynthManager : Node
         
         if (_synthBank.TryGetValue(key, out var res))
         {
-            // Stereo Panning
-            float pan = (note.Lane - 1.5f) / 1.5f * 0.5f; //not used for now
+            // Optional: Re-add panning logic if needed later
             AudioManager.Instance.PlaySFX(res);
         }
     }

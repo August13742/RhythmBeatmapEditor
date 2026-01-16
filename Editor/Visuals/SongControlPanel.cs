@@ -106,7 +106,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         private void SetupLogic()
         {
             // Connect Button Signals
-            _btnBack.Pressed += () => GD.Print("Back to Song Selector - Not Implemented");
+            _btnBack.Pressed += () => GetTree().ChangeSceneToFile("res://Editor/Visuals/Jukebox/Jukebox.tscn");
             
             // Seek Buttons
             _btnRewind.Pressed += () => SeekRel(-5);

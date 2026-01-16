@@ -10,45 +10,31 @@ public static class VocalSynthesiser
     #region Enums & Config
     public enum VowelType { A, I, U, E, O }
     
-    public enum VocalCharacter 
-    { 
-        Power, Soft, Pure, Dark, Cute, Opera, Robot 
-    }
+    // Simplified: We only need Power for the vocal mode requested
+    public enum VocalCharacter { Power, Soft, Pure, Dark, Cute, Opera, Robot }
 
-    public enum InstrumentType
-    {
-        Kick, Snare, Bass, Square, Piano, Guitar, Other
-    }
+    public enum InstrumentType { Kick, Snare, Bass, Square, Piano, Guitar, Other }
     
-    // Duration Buckets (Seconds) matching Python synthbank.py
     private static readonly float[] DUR_BUCKETS = { 0.25f, 0.50f, 0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f, 2.25f, 2.5f, 3.0f, 4.0f };
 
     public static float GetBucket(float dur)
     {
         if (dur <= 0.15f) return 0.15f;
-        
         float best = DUR_BUCKETS[0];
         float minDiff = Mathf.Abs(dur - best);
-        
         foreach(var d in DUR_BUCKETS)
         {
             float diff = Mathf.Abs(dur - d);
-            if (diff < minDiff)
-            {
-                minDiff = diff;
-                best = d;
-            }
+            if (diff < minDiff) { minDiff = diff; best = d; }
         }
         return best;
     }
     #endregion
 
-    #region Data Structures & Presets
+    #region Data Structures
     public struct Formant 
     {
-        public float Freq;
-        public float BW;
-        public float GainDb;
+        public float Freq; public float BW; public float GainDb;
         public Formant(float freq, float bw, float gainDb) { Freq = freq; BW = bw; GainDb = gainDb; }
     }
 
@@ -70,7 +56,7 @@ public static class VocalSynthesiser
     {
         if (_Initialised) return;
 
-        // 1. Setup Base Vowels
+        // 1. Setup Base Vowels (Standard Japanese Soprano)
         _baseVowels = new List<Formant>[5];
         _baseVowels[(int)VowelType.A] = new() { new(800, 80, 0), new(1200, 100, -6), new(2800, 120, -12) };
         _baseVowels[(int)VowelType.I] = new() { new(300, 50, -6), new(2300, 90, -12), new(3000, 120, -18) };
@@ -78,18 +64,11 @@ public static class VocalSynthesiser
         _baseVowels[(int)VowelType.E] = new() { new(500, 70, -4), new(1800, 90, -10), new(2600, 120, -16) };
         _baseVowels[(int)VowelType.O] = new() { new(500, 70, -2), new(900, 90, -8), new(2600, 120, -16) };
 
-        // 2. Setup Profiles
+        // 2. Setup Profile (Using Power Rin as default for this mode)
         int profileCount = Enum.GetNames(typeof(VocalCharacter)).Length;
         _profiles = new VocalProfile[profileCount];
-
         _profiles[(int)VocalCharacter.Power] = new() { Name = "Power", FormantShift = 1.08f, Breathiness = 0.01f, Tension = 0.8f, MasterGain = 0.9f };
-        _profiles[(int)VocalCharacter.Soft] = new() { Name = "Soft", FormantShift = 0.95f, Breathiness = 0.15f, Tension = 0.1f, MasterGain = 1.1f };
-        _profiles[(int)VocalCharacter.Pure] = new() { Name = "Pure", FormantShift = 1.12f, Breathiness = 0.02f, Tension = 0.4f, MasterGain = 1.0f };
-        _profiles[(int)VocalCharacter.Dark] = new() { Name = "Dark", FormantShift = 0.88f, Breathiness = 0.08f, Tension = 0.3f, MasterGain = 1.2f };
-        _profiles[(int)VocalCharacter.Cute] = new() { Name = "Cute", FormantShift = 1.25f, Breathiness = 0.02f, Tension = 0.7f, MasterGain = 0.9f, VibratoAmount = 1.2f };
-        _profiles[(int)VocalCharacter.Opera] = new() { Name = "Opera", FormantShift = 0.96f, Breathiness = 0.1f, Tension = 0.6f, MasterGain = 1.0f, VibratoAmount = 2.0f };
-        _profiles[(int)VocalCharacter.Robot] = new() { Name = "Robot", FormantShift = 1.0f, Breathiness = 0.0f, Tension = 0.9f, MasterGain = 0.8f, VibratoAmount = 0.0f };
-
+        
         _Initialised = true;
     }
     #endregion
@@ -106,10 +85,7 @@ public static class VocalSynthesiser
         return 1.0f / Mathf.Sqrt(denom);
     }
 
-    private static float GetNoteFreq(int midi)
-    {
-        return 440.0f * Mathf.Pow(2.0f, (midi - 69) / 12.0f);
-    }
+    private static float GetNoteFreq(int midi) => 440.0f * Mathf.Pow(2.0f, (midi - 69) / 12.0f);
 
     private static AudioStreamWav FloatsToWav(float[] samplesLeft, float[] samplesRight)
     {
@@ -122,7 +98,6 @@ public static class VocalSynthesiser
 
         int sampleCount = samplesLeft.Length;
         byte[] bytes = new byte[sampleCount * 4];
-
         int byteIndex = 0;
         for (int i = 0; i < sampleCount; i++)
         {
@@ -134,7 +109,6 @@ public static class VocalSynthesiser
             bytes[byteIndex++] = (byte)(sR & 0xFF);
             bytes[byteIndex++] = (byte)((sR >> 8) & 0xFF);
         }
-
         wav.Data = bytes;
         return wav;
     }
@@ -142,30 +116,26 @@ public static class VocalSynthesiser
 
     #region Generators
 
-    /// <summary>
-    /// Generates a specific vocal tone.
-    /// <param name="pitchVariance">Randomness in pitch when played. Default 0 for precise singing.</param>
-    /// </summary>
+    // --- 1. VOCAL GENERATOR ---
     public static SFXResource GenerateVocal(int midi, VowelType vowel, float duration = 0.25f, VocalCharacter character = VocalCharacter.Power, float pitchVariance = 0.0f)
     {
         InitialisePresets();
+        // Python: duration = max(duration, 0.45) -> Adjusted for C# feel
         duration = Mathf.Max(duration, 0.35f); 
 
-        var profile = _profiles[(int)character];
+        var profile = _profiles[(int)character] ?? _profiles[0];
         var targetFormants = _baseVowels[(int)vowel];
         
         float f0 = GetNoteFreq(midi);
         int totalSamples = (int)(SAMPLE_RATE * duration);
         float[] wave = new float[totalSamples];
         
-        // Formant setup
-        int formantCount = targetFormants.Count;
-        float[] f_fc = new float[formantCount];
-        float[] f_bw = new float[formantCount];
-        float[] f_gain = new float[formantCount];
-
-        for(int i = 0; i < formantCount; i++)
-        {
+        // Pre-calc Formants
+        int fCount = targetFormants.Count;
+        float[] f_fc = new float[fCount];
+        float[] f_bw = new float[fCount];
+        float[] f_gain = new float[fCount];
+        for(int i = 0; i < fCount; i++) {
             f_fc[i] = targetFormants[i].Freq * profile.FormantShift;
             f_bw[i] = targetFormants[i].BW;
             f_gain[i] = Mathf.Pow(10, targetFormants[i].GainDb / 20.0f);
@@ -174,109 +144,97 @@ public static class VocalSynthesiser
         // Phase & Vibrato
         float[] phaseAccum = new float[totalSamples];
         float currentPhase = 0f;
-        float vibratoRate = 5.5f;
-        float vibratoDepth = 0.08f * profile.VibratoAmount;
+        float vibRate = 5.5f;
+        float vibDepth = 0.08f * profile.VibratoAmount;
 
-        for(int i = 0; i < totalSamples; i++)
-        {
+        for(int i = 0; i < totalSamples; i++) {
             float t = (float)i / SAMPLE_RATE;
-            float vib = Mathf.Sin(2 * Mathf.Pi * vibratoRate * t) * vibratoDepth;
+            float vib = Mathf.Sin(2 * Mathf.Pi * vibRate * t) * vibDepth;
             float freqMod = f0 * Mathf.Pow(2.0f, vib / 12.0f);
             currentPhase += 2 * Mathf.Pi * freqMod / SAMPLE_RATE;
             phaseAccum[i] = currentPhase;
         }
 
-        // Harmonics
+        // Additive Synthesis
         int n = 1;
         float nyquist = SAMPLE_RATE / 2f;
         float slopeBase = -12.0f + (profile.Tension * 4.0f);
 
-        while (true)
-        {
+        while (true) {
             float freqN = f0 * n;
-            if (freqN >= nyquist || freqN > 11000) break;
+            if (freqN >= nyquist || freqN > 10000) break;
 
             float sourceAmp = Mathf.Pow(n, slopeBase / 6.0f);
             float filtAmp = 0.0f;
-            
-            for(int k=0; k < formantCount; k++)
-            {
-                filtAmp += KlattGain(freqN, f_fc[k], f_bw[k]) * f_gain[k];
-            }
+            for(int k=0; k < fCount; k++) filtAmp += KlattGain(freqN, f_fc[k], f_bw[k]) * f_gain[k];
 
             float finalAmp = sourceAmp * filtAmp;
-            if (finalAmp > 0.0001f)
-            {
+            if (finalAmp > 0.0001f) {
                 for(int i=0; i < totalSamples; i++) wave[i] += finalAmp * Mathf.Sin(n * phaseAccum[i]);
             }
             n++;
         }
 
-        // Breath
-        if (profile.Breathiness > 0.001f)
-        {
+        // Breath Noise
+        if (profile.Breathiness > 0.001f) {
             var rng = new Random();
-            for(int i=0; i<totalSamples; i++)
-            {
+            for(int i=0; i<totalSamples; i++) {
                 float noise = (float)(rng.NextDouble() * 2.0 - 1.0) * 0.2f; 
                 float breathMod = 0.5f + 0.5f * Mathf.Cos(phaseAccum[i]);
                 wave[i] += noise * breathMod * profile.Breathiness;
             }
         }
 
-        // Envelope
+        // Envelope (Safe for short durations)
         int atk = (int)(0.01f * SAMPLE_RATE);
         int rel = (int)(0.05f * SAMPLE_RATE);
         
-        for(int i=0; i<totalSamples; i++)
-        {
+        for(int i=0; i<totalSamples; i++) {
             float env = 1.0f;
-            if (i < atk) env = (float)i / atk;
-            else if (i > totalSamples - rel) env = 1.0f - ((float)(i - (totalSamples - rel)) / rel);
+            if (totalSamples < rel) {
+                 // If the whole note is shorter than the release, just fade out linearly
+                 env = 1.0f - ((float)i / totalSamples);
+            } else {
+                if (i < atk) env = (float)i / atk;
+                else if (i >= totalSamples - rel) env = 1.0f - ((float)(i - (totalSamples - rel)) / rel);
+            }
             wave[i] *= env;
         }
 
-        // Normalize
+        // Normalise
         float peak = 0f;
-        for(int i=0; i<totalSamples; i++) { float abs = Math.Abs(wave[i]); if(abs > peak) peak = abs; }
-        if (peak > 0.00001f) 
-        {
-            float normFactor = (1.0f / peak) * 0.25f * profile.MasterGain;
-            for(int i=0; i<totalSamples; i++) wave[i] *= normFactor;
+        for(int i=0; i<totalSamples; i++) if(Math.Abs(wave[i]) > peak) peak = Math.Abs(wave[i]);
+        if (peak > 0.00001f) {
+            float norm = (1.0f / peak) * 0.25f * profile.MasterGain;
+            for(int i=0; i<totalSamples; i++) wave[i] *= norm;
         }
 
-        // Stereo Haas
+        // Stereo Haas Effect
         float[] right = new float[totalSamples];
-        int delaySamples = (int)(0.005f * SAMPLE_RATE); 
-        if (totalSamples > delaySamples)
-        {
-            Array.Copy(wave, 0, right, delaySamples, totalSamples - delaySamples);
-            Array.Copy(wave, totalSamples - delaySamples, right, 0, delaySamples);
+        int delay = (int)(0.005f * SAMPLE_RATE); 
+        if (totalSamples > delay) {
+            Array.Copy(wave, 0, right, delay, totalSamples - delay);
+            Array.Copy(wave, totalSamples - delay, right, 0, delay);
+        } else {
+            Array.Copy(wave, right, totalSamples);
         }
 
-        // --- NEW: Apply Settings ---
         var res = new SFXResource();
         res.Clips = new AudioStream[] { FloatsToWav(wave, right) };
         res.Volume = 1.0f;
-        res.PitchVariance = pitchVariance; // Explicitly Set Randomness
+        res.PitchVariance = pitchVariance;
         return res;
     }
 
-    /// <summary>
-    /// Generates drum sounds.
-    /// <param name="pitchVariance">Default 0.05f for slight organic feel.</param>
-    /// </summary>
-    public static SFXResource GenerateDrums(InstrumentType type, float pitchVariance = 0.05f)
+    // --- 2. 8-BIT DRUMS GENERATOR (NEW) ---
+    public static SFXResource GenerateDrums(InstrumentType type)
     {
-        float duration = 0.15f;
+        // Python: duration = 0.12
+        float duration = 0.12f;
         int totalSamples = (int)(SAMPLE_RATE * duration);
         float[] wave = new float[totalSamples];
         var rng = new Random();
-
         bool isKick = type == InstrumentType.Kick;
-        bool isSnare = type == InstrumentType.Snare;
-
-        if (!isKick && !isSnare) return GenerateInstrument(type, 60, 0.0f); 
 
         for (int i = 0; i < totalSamples; i++)
         {
@@ -284,53 +242,44 @@ public static class VocalSynthesiser
             
             if (isKick)
             {
-                // MATCHES PYTHON: gen_drums_tone
-                // Freq Sweep 180 -> 50
-                float f_start = 180.0f;
-                float f_end = 50.0f;
-                float decay = 18.0f;
+                // Kick: Square wave slide 100Hz -> 30Hz
+                float f_start = 100.0f;
+                float f_end = 30.0f;
                 
-                // Phase = Integral
-                float phase = 2 * Mathf.Pi * (f_end * t - (f_start - f_end)/decay * Mathf.Exp(-decay * t));
-                wave[i] = Mathf.Sin(phase);
+                // Phase integral for linear chirp
+                // phi = 2pi * (f_start * t + (f_end - f_start)/(2*dur) * t^2)
+                float phase = 2 * Mathf.Pi * (f_start * t + ((f_end - f_start) / (2 * duration) * t * t));
                 
-                // Amp Env
-                wave[i] *= Mathf.Exp(-8f * t);
+                // Square wave logic
+                float raw = ((phase % (2 * Mathf.Pi)) < Mathf.Pi) ? 1.0f : -1.0f;
                 
-                // Click Transient (Essential for punch)
-                float click = Mathf.Sin(2 * Mathf.Pi * 3200f * t) * Mathf.Exp(-400f * t);
-                wave[i] += 0.5f * click;
+                // Env: exp(-18 * t)
+                wave[i] = raw * Mathf.Exp(-18f * t);
             }
-            else
+            else // Snare
             {
-                // Snare
-                float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
-                wave[i] = noise * Mathf.Exp(-20f * t);
-                
-                // Tone underbelly
-                float tone = Mathf.Sin(2 * Mathf.Pi * 200f * t) * Mathf.Exp(-15f * t);
-                wave[i] += 0.5f * tone;
+                // Snare: White Noise
+                float raw = (float)(rng.NextDouble() * 1.0 - 0.5); // Reduced amplitude range [-0.5, 0.5]
+                // Env: exp(-30 * t) - Fast decay
+                wave[i] = raw * Mathf.Exp(-30f * t);
             }
             
-            wave[i] *= 0.8f; // Tuned volume
+            // Reduced Global Volume for 8-bit drums (0.3 in Python)
+            wave[i] *= 0.3f;
         }
 
         var res = new SFXResource();
         res.Clips = new AudioStream[] { FloatsToWav(wave, wave) };
         res.Volume = 1.0f;
-        res.PitchVariance = pitchVariance; 
         return res;
     }
 
-    /// <summary>
-    /// Generates instrumental tones.
-    /// <param name="pitchVariance">Default 0.0f for precise tuning.</param>
-    /// </summary>
-    public static SFXResource GenerateInstrument(InstrumentType type, int midi, float pitchVariance = 0.0f)
+    // --- 3. BASIC INSTRUMENT GENERATOR (For 8-bit mode) ---
+    public static SFXResource GenerateInstrument(int midi, float duration)
     {
         float freq = GetNoteFreq(midi);
-        float duration = type == InstrumentType.Piano ? 0.3f : 0.2f;
-        if (type == InstrumentType.Other) duration = 0.15f;
+        // Ensure minimum audibility
+        duration = Mathf.Max(duration, 0.15f);
         
         int totalSamples = (int)(SAMPLE_RATE * duration);
         float[] wave = new float[totalSamples];
@@ -338,93 +287,19 @@ public static class VocalSynthesiser
         for (int i = 0; i < totalSamples; i++)
         {
             float t = (float)i / SAMPLE_RATE;
-            float sample = 0f;
-
-            switch(type)
-            {
-                case InstrumentType.Square:
-                    float phaseSq = 2 * Mathf.Pi * freq * t;
-                    float raw = ((phaseSq % (2 * Mathf.Pi)) < Mathf.Pi) ? 1.0f : -1.0f;
-                    sample = raw * Mathf.Exp(-12f * t) * 0.3f;
-                    break;
-
-                case InstrumentType.Bass:
-                    sample = 2 * Mathf.Abs(2 * ((t * freq) % 1) - 1) - 1;
-                    sample *= Mathf.Exp(-10f * t) * 0.35f;
-                    break;
-                
-                case InstrumentType.Piano:
-                    float modIdx = 2.0f * Mathf.Exp(-15f * t);
-                    sample = Mathf.Sin(2 * Mathf.Pi * freq * t + modIdx * Mathf.Sin(2 * Mathf.Pi * freq * 2 * t));
-                    sample *= Mathf.Exp(-5f * t) * 0.3f;
-                    break;
-                    
-                case InstrumentType.Guitar:
-                    // Use Karplus-Strong implementation below
-                    // This loop is sample-by-sample, but KS requires a buffer history.
-                    // We must break out or handle differently.
-                    // For logic simplicity, we'll return early if Guitar is detected and call dedicated function.
-                    return GenerateGuitarKS(midi, duration);
-
-                case InstrumentType.Other:
-                    sample = Mathf.Sign(Mathf.Sin(2 * Mathf.Pi * freq * 1.5f * t));
-                    float decay = 3.0f / duration;
-                    sample *= Mathf.Exp(-decay * t) * 0.25f;
-                    break;
-            }
-            wave[i] = sample;
-        }
-
-        var res = new SFXResource();
-        res.Clips = new AudioStream[] { FloatsToWav(wave, wave) };
-        res.Volume = 1.0f;
-        res.PitchVariance = pitchVariance; // Set Randomness
-        return res;
-    }
-
-    /// <summary>
-    /// Karplus-Strong Guitar Synthesis
-    /// </summary>
-    public static SFXResource GenerateGuitarKS(int midi, float duration = 0.2f)
-    {
-        float freq = GetNoteFreq(midi);
-        int sr = SAMPLE_RATE;
-        
-        // Ring Buffer size
-        int N = (int)(sr / freq);
-        if (N < 2) N = 2; // Safety
-        
-        float[] buf = new float[N];
-        var rng = new Random();
-        
-        // Init with noise (Burst)
-        for(int i=0; i<N; i++) buf[i] = (float)(rng.NextDouble() * 2.0 - 1.0);
-        
-        int n_samples = (int)(sr * duration);
-        float[] wave = new float[n_samples];
-        
-        int ptr = 0;
-        
-        for(int i=0; i<n_samples; i++)
-        {
-            wave[i] = buf[ptr];
             
-            // Lowpass filter
-            int prev_ptr = (ptr - 1 + N) % N;
-            float avg = 0.992f * 0.5f * (buf[ptr] + buf[prev_ptr]);
+            // Standard Square Wave
+            float phase = 2 * Mathf.Pi * freq * t;
+            float raw = ((phase % (2 * Mathf.Pi)) < Mathf.Pi) ? 1.0f : -1.0f;
             
-            buf[ptr] = avg;
-            ptr = (ptr + 1) % N;
+            // Simple decay envelope matching Python gen_square_tone
+            wave[i] = raw * Mathf.Exp(-12f * t) * 0.3f;
         }
-        
-        // Normalize gain similar to others ~0.5 scale
-        for(int i=0; i<n_samples; i++) wave[i] *= 0.5f;
 
         var res = new SFXResource();
         res.Clips = new AudioStream[] { FloatsToWav(wave, wave) };
         res.Volume = 1.0f;
         return res;
     }
-
     #endregion
 }

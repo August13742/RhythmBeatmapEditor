@@ -1,0 +1,68 @@
+[gd_scene format=3 uid="uid://jukebox"]
+
+[ext_resource type="Script" uid="uid://bftrr1e6v8eld" path="res://Editor/Visuals/Jukebox/Jukebox.cs" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://songlist" path="res://Editor/Visuals/Jukebox/SongList.tscn" id="2_songlist"]
+[ext_resource type="PackedScene" uid="uid://c70x5f4o4jcnp" path="res://Editor/Visuals/Jukebox/SongInspector.tscn" id="3_inspector"]
+[ext_resource type="PackedScene" uid="uid://57yv48lyutsu" path="res://Editor/Visuals/Visualiser.tscn" id="4_ecybr"]
+
+[node name="Jukebox" type="Control" unique_id=981479184]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="Panel" type="Panel" parent="." unique_id=1809485868]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="Panel" unique_id=933406951]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/MarginContainer" unique_id=1340828224]
+layout_mode = 2
+
+[node name="TopBar" type="HBoxContainer" parent="Panel/MarginContainer/VBoxContainer" unique_id=782497524]
+layout_mode = 2
+
+[node name="BtnBack" type="Button" parent="Panel/MarginContainer/VBoxContainer/TopBar" unique_id=1267073610]
+unique_name_in_owner = true
+layout_mode = 2
+text = "<- Back"
+
+[node name="Label" type="Label" parent="Panel/MarginContainer/VBoxContainer/TopBar" unique_id=1950643653]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "JUKEBOX"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="Panel/MarginContainer/VBoxContainer" unique_id=978182441]
+layout_mode = 2
+
+[node name="Split" type="HSplitContainer" parent="Panel/MarginContainer/VBoxContainer" unique_id=250860675]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SongList" parent="Panel/MarginContainer/VBoxContainer/Split" unique_id=1459929027 instance=ExtResource("2_songlist")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="SongInspector" parent="Panel/MarginContainer/VBoxContainer/Split" unique_id=1383729747 instance=ExtResource("3_inspector")]
+unique_name_in_owner = true
+layout_mode = 2
+visualiserScene = ExtResource("4_ecybr")

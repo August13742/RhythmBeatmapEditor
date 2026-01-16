@@ -81,7 +81,7 @@ public partial class SynthTest : Control
     {
         string key = $"INST_{type}_{midi}";
         if (!_cache.ContainsKey(key))
-            _cache[key] = VocalSynthesiser.GenerateInstrument(type, midi);
+            _cache[key] = VocalSynthesiser.GenerateInstrument(midi,duration:0.15f);
         AudioManager.Instance.PlaySFX(_cache[key]);
     }
 

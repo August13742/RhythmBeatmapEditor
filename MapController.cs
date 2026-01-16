@@ -51,8 +51,13 @@ namespace RhythmBeatmapEditor
             _synth = new Core.Audio.SynthManager { Name = "SynthManager" };
             AddChild(_synth); 
 
-            // 1.5 Setup UI Overlays (Song Control Panel)
-            if(SongPanel == null) SetupHUD();
+            // 1.5 Valdiate UI Overlays
+            if(SongPanel == null) 
+            {
+                 // Assuming Scene Workflow, this should be set in Inspector.
+                 // If not, we warn.
+                 GD.PrintErr("[MapController] Song Control Panel not assigned!");
+            }
 
             // 2. Load Content
             CallDeferred(nameof(LoadContent));
@@ -60,45 +65,46 @@ namespace RhythmBeatmapEditor
 
         private void LoadContent()
         {
-            // Globalize paths so System.IO can read them
-            string absSongPath = ProjectSettings.GlobalizePath(TEST_SONG_PATH_RELATIVE);
-            string absMapPath = ProjectSettings.GlobalizePath(TEST_MAP_PATH_RELATIVE);
-            GD.Print($"[MapController] Loading Song: {absSongPath}");
+            string songPath, mapPath;
+
+            // Check SessionData
+            if (!string.IsNullOrEmpty(Core.SessionData.CurrentSongPath))
+            {
+                songPath = Core.SessionData.CurrentSongPath;
+                mapPath = Core.SessionData.CurrentMapPath;
+                GD.Print($"[MapController] Loading from Session: {songPath}");
+            }
+            else
+            {
+                // Error: No session data (direct launch not supported for now unless mocked, but we prefer Jukebox flow)
+                GD.PrintErr("[MapController] No Session Data! Returning to Jukebox.");
+                GetTree().ChangeSceneToFile("uid://jukebox");
+                return;
+            }
             
             // Audio
-            _context.AudioController.LoadSong(absSongPath);
+            if (File.Exists(songPath))
+            {
+                 _context.AudioController.LoadSong(songPath);
+            }
+            else
+            {
+                 GD.PrintErr($"[Error] Song not found: {songPath}");
+                 GetTree().ChangeSceneToFile("uid://jukebox");
+                 return;
+            }
             
             // Map
-            if (File.Exists(absMapPath))
+            if (File.Exists(mapPath))
             {
-                string json = File.ReadAllText(absMapPath);
+                string json = File.ReadAllText(mapPath);
                 _context.LoadBeatmapJSON(json);
             }
             else
             {
-                GD.PrintErr($"[Error] Map not found: {absMapPath}");
+                GD.PrintErr($"[Error] Map not found: {mapPath}");
+                GetTree().ChangeSceneToFile("uid://jukebox");
             }
-        }
-        
-        private void SetupHUD()
-        {
-            var layer = new CanvasLayer { Name = "HUDLayer", Layer = 10 };
-            AddChild(layer);
-            
-            // Load from Scene
-            var scene = GD.Load<PackedScene>("res://Editor/Visuals/SongControlPanel.tscn");
-            var panel = scene.Instantiate<SongControlPanel>();
-            panel.Name = "SongControlPanel";
-            layer.AddChild(panel);
-            
-            // Layout: Top Bar with some padding
-            panel.SetAnchorsPreset(Control.LayoutPreset.TopWide);
-            panel.SizeFlagsVertical = Control.SizeFlags.ShrinkBegin;
-            panel.Position = new Vector2(0, 0); 
-            panel.CustomMinimumSize = new Vector2(0, 60); 
-            
-            // Initialise
-            panel.Initialise(_context);
         }
         
         private void OnBeatmapLoaded()

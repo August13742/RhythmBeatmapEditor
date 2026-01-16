@@ -1,0 +1,50 @@
+[gd_scene format=3 uid="uid://c70x5f4o4jcnp"]
+
+[ext_resource type="Script" uid="uid://crps2qystbm7l" path="res://Editor/Visuals/Jukebox/SongInspector.cs" id="1_script"]
+[ext_resource type="PackedScene" uid="uid://57yv48lyutsu" path="res://Editor/Visuals/Visualiser.tscn" id="2_lwar5"]
+
+[node name="SongInspector" type="VBoxContainer" unique_id=1643952408]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_script")
+VisualiserScene = ExtResource("2_lwar5")
+
+[node name="LabelSongName" type="Label" parent="." unique_id=2030667620]
+layout_mode = 2
+theme_type_variation = &"HeaderLarge"
+text = "Select a Song"
+horizontal_alignment = 1
+
+[node name="HSeparator" type="HSeparator" parent="." unique_id=250061351]
+layout_mode = 2
+
+[node name="LabelDifficulty" type="Label" parent="." unique_id=671787659]
+layout_mode = 2
+text = "Select Difficulty:"
+
+[node name="DifficultyContainer" type="HBoxContainer" parent="." unique_id=1244638829]
+layout_mode = 2
+theme_override_constants/separation = 10
+alignment = 1
+
+[node name="HSeparator2" type="HSeparator" parent="." unique_id=573934809]
+layout_mode = 2
+
+[node name="LabelStatsHeader" type="Label" parent="." unique_id=2005777236]
+layout_mode = 2
+text = "Statistics:"
+
+[node name="LabelStats" type="RichTextLabel" parent="." unique_id=19736026]
+layout_mode = 2
+size_flags_vertical = 3
+bbcode_enabled = true
+text = "[i]Select a difficulty to see stats...[/i]"
+
+[node name="ButtonLoad" type="Button" parent="." unique_id=1439859529]
+layout_mode = 2
+text = "LOAD / PLAY"

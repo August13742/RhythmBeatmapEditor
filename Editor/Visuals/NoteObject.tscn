@@ -1,14 +1,41 @@
-[gd_scene format=3 uid="uid://cuefd7f6nvs8q"]
+[gd_scene format=3 uid="uid://byauknmek3lyt"]
 
-[ext_resource type="Script" uid="uid://d7ur6pilkyxg" path="res://Editor/Visuals/NoteObject.cs" id="1_w2uts"]
+[ext_resource type="Script" uid="uid://5pl0g1nfq27a" path="res://Editor/Visuals/NoteObject.cs" id="1_w2uts"]
+[ext_resource type="Texture2D" uid="uid://cyboep0aq643d" path="res://UI/button_corner_rectangle2_1.png" id="2_qh8dx"]
 
-[node name="NoteObject" type="Control" unique_id=301879659]
+[node name="NoteObject" type="Control" unique_id=301879659 node_paths=PackedStringArray("_visualRect", "_lblDelta")]
 layout_mode = 3
+anchors_preset = 0
+mouse_filter = 1
+script = ExtResource("1_w2uts")
+_visualRect = NodePath("VisualRect")
+_lblDelta = NodePath("LabelDelta")
+
+[node name="VisualRect" type="TextureRect" parent="." unique_id=34077515]
+unique_name_in_owner = true
+layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_right = -1152.0
-offset_bottom = -648.0
+offset_right = 10.0
+offset_bottom = 5.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_w2uts")
+mouse_filter = 2
+texture = ExtResource("2_qh8dx")
+expand_mode = 1
+
+[node name="LabelDelta" type="Label" parent="." unique_id=545193959]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = -25.0
+offset_top = -45.0
+offset_right = 25.0
+offset_bottom = 5.0
+grow_horizontal = 2
+text = "+0.00s"
+horizontal_alignment = 1
+vertical_alignment = 1
