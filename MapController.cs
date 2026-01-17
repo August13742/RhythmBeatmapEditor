@@ -17,6 +17,7 @@ namespace RhythmBeatmapEditor
         
         private int _noteIndex = 0;
         private Core.Audio.SynthManager _synth;
+        private NodePath jukeboxPath = "uid://jukebox";
 
         public override void _Ready()
         {
@@ -75,7 +76,7 @@ namespace RhythmBeatmapEditor
             {
                 // Error: No session data (direct launch not supported for now unless mocked, but we prefer Jukebox flow)
                 GD.PrintErr("[MapController] No Session Data! Returning to Jukebox.");
-                GetTree().ChangeSceneToFile("uid://jukebox");
+                GetTree().ChangeSceneToFile(jukeboxPath);
                 return;
             }
             
@@ -87,7 +88,7 @@ namespace RhythmBeatmapEditor
             else
             {
                  GD.PrintErr($"[Error] Song not found: {songPath}");
-                 GetTree().ChangeSceneToFile("uid://jukebox");
+                 GetTree().ChangeSceneToFile(jukeboxPath);
                  return;
             }
             
@@ -100,7 +101,7 @@ namespace RhythmBeatmapEditor
             else
             {
                 GD.PrintErr($"[Error] Map not found: {mapPath}");
-                GetTree().ChangeSceneToFile("uid://jukebox");
+                GetTree().ChangeSceneToFile(jukeboxPath);
             }
         }
         

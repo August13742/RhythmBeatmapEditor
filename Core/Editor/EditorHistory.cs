@@ -8,10 +8,6 @@ public partial class EditorHistory : Node
 {
     private Dictionary<NoteEvent, NoteEvent> _originalSnapshot = new();
     
-    // Dependency: We need access to Selection to refresh UI? 
-    // Or just Emit Signal?
-    // EditorContext mediated this.
-    // For now, let's just emit an event when history operations change state.
     public event System.Action OnHistoryChanged;
 
     public void CaptureSnapshot(IEnumerable<NoteEvent> notes)

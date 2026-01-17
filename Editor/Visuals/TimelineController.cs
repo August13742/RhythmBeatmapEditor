@@ -170,7 +170,6 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             // 3. Layout Update
             GhostLayer.Clear();
             
-            // Cache is already refreshed at start of Tick
             
             float hitY = Size.Y - HitLineOffset;
             
@@ -382,11 +381,11 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             if (string.IsNullOrEmpty(source)) return Colors.Gray;
             
             source = source.ToLower();
-            if (source.Contains("vocal")) return Colors.Tomato;
+            if (source.Contains("vocal")) return Colors.MediumOrchid;
             if (source.Contains("guitar")) return Colors.SpringGreen;
             if (source.Contains("piano")) return Colors.DeepSkyBlue;
             if (source.Contains("bass")) return Colors.Gold;
-            if (source.Contains("drum")) return Colors.MediumOrchid;
+            if (source.Contains("drum")) return Colors.Tomato;
             
             return Colors.LightGray;
         }

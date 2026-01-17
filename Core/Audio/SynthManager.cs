@@ -32,7 +32,7 @@ public partial class SynthManager : Node
                     // 1. High Quality Vocal Synthesis
                     int vIdx = (midi * 13 + 7) % 5;
 
-                    // --- HIGH PITCH FIX (Restored from Python) ---
+                    // --- HIGH PITCH FIX ---
                     if (midi > 80) 
                     {
                         if (vIdx == 1) vIdx = 0; // Swap I -> A
@@ -76,7 +76,6 @@ public partial class SynthManager : Node
         
         if (_synthBank.TryGetValue(key, out var res))
         {
-            // Optional: Re-add panning logic if needed later
             AudioManager.Instance.PlaySFX(res);
         }
     }

@@ -213,7 +213,7 @@ public static class VocalSynthesiser
         return FinaliseResource(wave, volume, lane, maxLanes, pitchVariance);
     }
 
-    // --- 2. 8-BIT DRUMS GENERATOR (NEW) ---
+    // --- 8-BIT DRUMS GENERATOR ---
     public static SFXResource GenerateDrums(InstrumentType type, float volume = 1.0f, int lane = 2, int maxLanes = 4)
     {
         // Python: duration = 0.12
@@ -254,7 +254,7 @@ public static class VocalSynthesiser
                 wave[i] = raw * Mathf.Exp(-30f * t);
             }
             
-            // Reduced Global Volume for 8-bit drums (0.3 in Python)
+            // Reduced Global Volume for 8-bit drums
             wave[i] *= 0.3f;
         }
 
@@ -282,7 +282,7 @@ public static class VocalSynthesiser
             float phase = 2 * Mathf.Pi * freq * t;
             float raw = ((phase % (2 * Mathf.Pi)) < Mathf.Pi) ? 1.0f : -1.0f;
             
-            // Simple decay envelope matching Python gen_square_tone
+            // Simple decay envelope
             wave[i] = raw * Mathf.Exp(-12f * t) * 0.3f;
         }
 
@@ -297,10 +297,10 @@ public static class VocalSynthesiser
     {
         { InstrumentType.Kick, 0.9f },
         { InstrumentType.Snare, 0.9f },
-        { InstrumentType.Bass, 0.8f }, // Less interfering
+        { InstrumentType.Bass, 0.8f },
         { InstrumentType.Piano, 0.9f },
         { InstrumentType.Guitar, 0.9f },
-        { InstrumentType.Other, 0.8f }
+        { InstrumentType.Other, 0.85f }
     };
 
     private static SFXResource FinaliseResource(float[] monoWave, float volume, int lane, int maxLanes, float pitchVar = 0f)
@@ -317,8 +317,6 @@ public static class VocalSynthesiser
         // Linear Panning Rule:
         // L = (1-t), R = t   (Simple)
         // Constant Power: L = cos(t * pi/2), R = sin(t * pi/2)
-        // Let's use simple linear for retro feel or constant power for better mix? 
-        // Constant power is safer for center loudness.
         float panL = Mathf.Cos(t * Mathf.Pi / 2.0f);
         float panR = Mathf.Sin(t * Mathf.Pi / 2.0f);
         
