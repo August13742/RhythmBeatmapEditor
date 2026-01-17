@@ -117,7 +117,7 @@ public static class VocalSynthesiser
     #region Generators
 
     // --- 1. VOCAL GENERATOR ---
-    public static SFXResource GenerateVocal(int midi, VowelType vowel, float duration = 0.25f, VocalCharacter character = VocalCharacter.Power, float pitchVariance = 0.0f)
+    public static SFXResource GenerateVocal(int midi, VowelType vowel, float duration = 0.25f, VocalCharacter character = VocalCharacter.Power, float pitchVariance = 0.0f, float volume = 1.0f, int lane = 2, int maxLanes = 4)
     {
         InitialisePresets();
         // Python: duration = max(duration, 0.45) -> Adjusted for C# feel
@@ -205,29 +205,16 @@ public static class VocalSynthesiser
         float peak = 0f;
         for(int i=0; i<totalSamples; i++) if(Math.Abs(wave[i]) > peak) peak = Math.Abs(wave[i]);
         if (peak > 0.00001f) {
+            // Apply Tunable Volume for Vocal (Mode dependent? sticking to 1.0 for vocal as lead)
             float norm = (1.0f / peak) * 0.25f * profile.MasterGain;
             for(int i=0; i<totalSamples; i++) wave[i] *= norm;
         }
 
-        // Stereo Haas Effect
-        float[] right = new float[totalSamples];
-        int delay = (int)(0.005f * SAMPLE_RATE); 
-        if (totalSamples > delay) {
-            Array.Copy(wave, 0, right, delay, totalSamples - delay);
-            Array.Copy(wave, totalSamples - delay, right, 0, delay);
-        } else {
-            Array.Copy(wave, right, totalSamples);
-        }
-
-        var res = new SFXResource();
-        res.Clips = new AudioStream[] { FloatsToWav(wave, right) };
-        res.Volume = 1.0f;
-        res.PitchVariance = pitchVariance;
-        return res;
+        return FinaliseResource(wave, volume, lane, maxLanes, pitchVariance);
     }
 
     // --- 2. 8-BIT DRUMS GENERATOR (NEW) ---
-    public static SFXResource GenerateDrums(InstrumentType type)
+    public static SFXResource GenerateDrums(InstrumentType type, float volume = 1.0f, int lane = 2, int maxLanes = 4)
     {
         // Python: duration = 0.12
         float duration = 0.12f;
@@ -235,6 +222,9 @@ public static class VocalSynthesiser
         float[] wave = new float[totalSamples];
         var rng = new Random();
         bool isKick = type == InstrumentType.Kick;
+        
+        // Tunable Volume
+        float baseVol = InstrumentVolumes.GetValueOrDefault(type, 0.8f);
 
         for (int i = 0; i < totalSamples; i++)
         {
@@ -268,18 +258,18 @@ public static class VocalSynthesiser
             wave[i] *= 0.3f;
         }
 
-        var res = new SFXResource();
-        res.Clips = new AudioStream[] { FloatsToWav(wave, wave) };
-        res.Volume = 1.0f;
-        return res;
+        return FinaliseResource(wave, volume * baseVol, lane, maxLanes);
     }
 
     // --- 3. BASIC INSTRUMENT GENERATOR (For 8-bit mode) ---
-    public static SFXResource GenerateInstrument(int midi, float duration)
+    public static SFXResource GenerateInstrument(int midi, float duration, float volume = 1.0f, int lane = 2, int maxLanes = 4)
     {
         float freq = GetNoteFreq(midi);
         // Ensure minimum audibility
         duration = Mathf.Max(duration, 0.15f);
+        
+        // Tunable Volume for 'Other' instruments
+        float baseVol = InstrumentVolumes.GetValueOrDefault(InstrumentType.Guitar, 0.5f); // Use Guitar as generic placeholder or add Other
         
         int totalSamples = (int)(SAMPLE_RATE * duration);
         float[] wave = new float[totalSamples];
@@ -296,9 +286,56 @@ public static class VocalSynthesiser
             wave[i] = raw * Mathf.Exp(-12f * t) * 0.3f;
         }
 
+        return FinaliseResource(wave, volume * baseVol, lane, maxLanes);
+    }
+    #endregion
+
+    #region Helpers & Finalisation
+    
+    // Default instrument volumes (Tunable)
+    public static Dictionary<InstrumentType, float> InstrumentVolumes = new()
+    {
+        { InstrumentType.Kick, 0.9f },
+        { InstrumentType.Snare, 0.9f },
+        { InstrumentType.Bass, 0.8f }, // Less interfering
+        { InstrumentType.Piano, 0.9f },
+        { InstrumentType.Guitar, 0.9f },
+        { InstrumentType.Other, 0.8f }
+    };
+
+    private static SFXResource FinaliseResource(float[] monoWave, float volume, int lane, int maxLanes, float pitchVar = 0f)
+    {
+        // 1. Panning Logic
+        // lane 0 -> Left, lane max -> Right
+        // Center is 0.5
+        float t = 0.5f;
+        if (maxLanes > 1) t = (float)lane / (maxLanes - 1);
+        
+        // Clamp 0..1
+        t = Mathf.Clamp(t, 0f, 1f);
+        
+        // Linear Panning Rule:
+        // L = (1-t), R = t   (Simple)
+        // Constant Power: L = cos(t * pi/2), R = sin(t * pi/2)
+        // Let's use simple linear for retro feel or constant power for better mix? 
+        // Constant power is safer for center loudness.
+        float panL = Mathf.Cos(t * Mathf.Pi / 2.0f);
+        float panR = Mathf.Sin(t * Mathf.Pi / 2.0f);
+        
+        int count = monoWave.Length;
+        float[] left = new float[count];
+        float[] right = new float[count];
+        
+        for(int i=0; i < count; i++)
+        {
+            left[i] = monoWave[i] * panL * volume;
+            right[i] = monoWave[i] * panR * volume;
+        }
+        
         var res = new SFXResource();
-        res.Clips = new AudioStream[] { FloatsToWav(wave, wave) };
-        res.Volume = 1.0f;
+        res.Clips = new AudioStream[] { FloatsToWav(left, right) };
+        res.Volume = 1.0f; // Baked into samples, so keep this 1.0 usually, or use it for runtime scaling
+        res.PitchVariance = pitchVar;
         return res;
     }
     #endregion

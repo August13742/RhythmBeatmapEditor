@@ -123,12 +123,37 @@ public partial class EditorAudioController : Node
         return _player.GetPlaybackPosition();
     }
     
+    // --- Volume Control ---
+    public float MusicVolume { get; private set; } = 1.0f;
+    public float SFXVolume { get; private set; } = 1.0f;
+
+    public void SetMusicVolume(float linear)
+    {
+        MusicVolume = Mathf.Clamp(linear, 0f, 2f);
+        // Convert Linear to Db
+        // 1.0 -> 0 Db
+        // 0.0 -> -80 Db (Mute)
+        // 2.0 -> +6 Db
+        float db = Mathf.LinearToDb(MusicVolume);
+        _player.VolumeDb = db;
+    }
+
+    public void SetSFXVolume(float linear)
+    {
+        SFXVolume = Mathf.Clamp(linear, 0f, 2f);
+    }
+    
     public void PlayOneShot(AudioStream stream)
     {
         if (stream == null) return;
         var asp = new AudioStreamPlayer();
         asp.Stream = stream;
         asp.Bus = "Master"; // SFX usually Master or separate bus
+        
+        // Apply SFX Volume
+        float db = Mathf.LinearToDb(SFXVolume);
+        asp.VolumeDb = db;
+        
         AddChild(asp);
         asp.Finished += () => asp.QueueFree();
         asp.Play();

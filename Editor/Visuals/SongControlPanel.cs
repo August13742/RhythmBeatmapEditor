@@ -9,6 +9,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
     {
         private EditorContext _context;
         
+        [Export] private float initialMusicVol = 0.5f;
+        [Export] private float initialSFXVol = 1.0f;
         // --- Assets (Inspector) ---
         [ExportGroup("Icons")]
         [Export] public Texture2D IconPlay { get; set; }
@@ -38,6 +40,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         // State
         private bool _isDraggingSlider = false;
 
+        private HSlider _sliderMusicVol, _sliderSFXVol;
+
         public override void _Ready()
         {
             // Bind Nodes
@@ -52,6 +56,9 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _btnRevertAll = GetNode<Button>("%BtnRevertAll");
             _sliderProgress = GetNode<HSlider>("%SliderProgress");
             
+            _sliderMusicVol = GetNode<HSlider>("%SliderMusicVol");
+            _sliderSFXVol = GetNode<HSlider>("%SliderSFXVol");
+            
             _confirmRevert = GetNode<ConfirmationDialog>("%ConfirmRevert");
             
             SetupLogic();
@@ -64,6 +71,9 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             
             // Connect to Signals/Events
             _context.Connect(EditorContext.SignalName.PlaybackTimeUpdated, Callable.From<float>(OnTimeUpdated));
+            
+            _sliderMusicVol.Value = initialMusicVol;
+            _sliderSFXVol.Value = initialSFXVol;
         }
         
         public override void _ExitTree()
@@ -127,6 +137,10 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 SeekTo(_sliderProgress.Value);
             };
             
+            // Volume Logic
+            _sliderMusicVol.ValueChanged += (v) => _context?.AudioController?.SetMusicVolume((float)v);
+            _sliderSFXVol.ValueChanged += (v) => _context?.AudioController?.SetSFXVolume((float)v);
+            
             // Focus Management - Disable focus to prevent spacebar hijacking
             _btnBack.FocusMode = FocusModeEnum.None;
             _btnRewind.FocusMode = FocusModeEnum.None;
@@ -137,7 +151,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _sliderProgress.FocusMode = FocusModeEnum.None;
             _btnRevertAll.FocusMode = FocusModeEnum.None;
             
-
+            _sliderMusicVol.FocusMode = FocusModeEnum.None;
+            _sliderSFXVol.FocusMode = FocusModeEnum.None;
         }
         
         private void ApplyStyling()

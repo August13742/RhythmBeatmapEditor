@@ -69,13 +69,14 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             AddChild(_input);
             _input.RequestMarqueeSelect += PerformMarqueeSelect;
 
-            // Important: Recalculate cache if the window resizes
-            LaneContainer.Resized += RefreshLaneCache;
         }
 
         public void Initialise(EditorContext context)
         {
-            if (_context != null) _context.OnSelectionChanged -= HandleExternalSelectionInfo;
+            if (_context != null) 
+            {
+                _context.OnSelectionChanged -= HandleExternalSelectionInfo;
+            }
             _context = context;
             _currentMap = context.CurrentBeatmap;
             
@@ -92,28 +93,51 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             // 2. Reset
             ResetVisuals();
             _spawnStartIndex = 0;
+            
         }
         
         public override void _ExitTree()
         {
-            if (_context != null)
-                _context.OnSelectionChanged -= HandleExternalSelectionInfo;
+            if (_context != null) _context.OnSelectionChanged -= HandleExternalSelectionInfo;
+
         }
+        
 
         public override void _Process(double delta)
         {
             if (_context == null) return;
             
             // Re-sync HitLine visual position only if screen size changed (handled by anchors usually) or offset changed
-            // Doing this here is fine, simpler than caching
             HitLine.Position = new Vector2(0, Size.Y - HitLineOffset);
 
             Tick(_context.PlaybackTime);
         }
+        private Rect2 _lastLaneRect;
+        private float _lastLayerX;
 
         public void Tick(float time)
         {
             if (_currentMap == null) return;
+
+            // --- DIRTY CHECK ---
+            // check if the container Resized OR Moved.
+            Rect2 currentLaneRect = LaneContainer.GetGlobalRect();
+            float currentLayerX = NoteLayer.GlobalPosition.X;
+
+            // Check if Rect changed (Position OR Size) OR if NoteLayer moved
+            bool isDirty = currentLaneRect != _lastLaneRect || 
+                        Math.Abs(currentLayerX - _lastLayerX) > 0.01f;
+
+            if (isDirty)
+            {
+                RefreshLaneCache();
+                
+                // Update trackers
+                _lastLaneRect = currentLaneRect;
+                _lastLayerX = currentLayerX;
+                
+                // GD.Print($"[Timeline] Layout updated. Width: {currentLaneRect.Size.X}"); 
+            }
 
             float start = time - 1.0f;
             float end = time + LookAheadTime;
@@ -127,12 +151,11 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             }
             foreach (var note in _despawnCache) DespawnNote(note);
 
-            // 2. Spawn (Your optimized logic)
+            // 2. Spawn
             var notes = _currentMap.Notes;
             int count = notes.Count;
             if (count > 0)
             {
-                // Logic preserved from your snippet
                 while (_spawnStartIndex > 0 && notes[_spawnStartIndex].Time > start) _spawnStartIndex--;
                 while (_spawnStartIndex < count && notes[_spawnStartIndex].Time < start) _spawnStartIndex++;
 
@@ -147,9 +170,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             // 3. Layout Update
             GhostLayer.Clear();
             
-            // Cache Check: Ensure cache is valid before iterating
-            if (_laneCache == null || _laneCache.Length == 0) RefreshLaneCache();
-
+            // Cache is already refreshed at start of Tick
+            
             float hitY = Size.Y - HitLineOffset;
             
             foreach (var kvp in _activeVisuals)
@@ -166,7 +188,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         private void SpawnNote(NoteEvent data)
         {
             var vis = _notePool.Rent();
-            vis.Bind(data, GetLaneColor(data.Lane));
+            vis.Bind(data, GetSourceColor(data.Source));
             vis.OnInput += HandleNoteInput;
             vis.OnDrag += HandleNoteDrag;
             vis.OnDragEnd += HandleNoteDragEnd;
@@ -216,7 +238,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             }
         }
         
-        // --- Critical Optimization: Layout Note ---
+        // --- Critical Optimisation: Layout Note ---
         private void LayoutNote(NoteObject vis, NoteEvent data, float time, float hitY)
         {
             float pps = _context.ScrollSpeed;
@@ -238,7 +260,6 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         }
 
         private void HandleNoteInput(NoteObject source, InputEvent e) => _input.HandleNoteInput(source, e);
-        
         
         private void HandleNoteDrag(NoteObject source, Vector2 delta) => _input.HandleNoteDrag(source, delta);
         
@@ -271,10 +292,9 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         }
 
         // --- Lane Cache ---
-        private void RefreshLaneCache()
+        public void RefreshLaneCache()
         {
-            // Wait for next frame if children aren't ready? 
-            // Usually safest to force layout update if needed, but here we just read.
+            if (LaneContainer == null || NoteLayer == null) return;
             
             int count = LaneContainer.GetChildCount();
             if (_laneCache == null || _laneCache.Length != count)
@@ -293,7 +313,9 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                     // Cache the X position relative to NoteLayer
                     _laneCache[i].LocalX = relativeBaseX + lane.Position.X;
                     _laneCache[i].Width = lane.Size.X;
-                    _laneCache[i].Color = GetLaneColor(i);
+                    // Lane color for background is procedural, but note color is now Source based.
+                    // We can keep this for debug or lane bg if needed, but unused by notes now.
+                    _laneCache[i].Color = Colors.White; 
                 }
             }
         }
@@ -355,15 +377,18 @@ namespace RhythmBeatmapEditor.Editor.Visuals
              _input.HandleLaneInput(@event, laneIndex, HitLineOffset, Size.Y);
         }
 
-        private Color GetLaneColor(int lane)
+        private Color GetSourceColor(string source)
         {
-            return lane switch {
-                0 => Colors.Pink,
-                1 => Colors.Cyan,
-                2 => Colors.Cyan,
-                3 => Colors.Pink,
-                _ => Colors.Magenta
-            };
+            if (string.IsNullOrEmpty(source)) return Colors.Gray;
+            
+            source = source.ToLower();
+            if (source.Contains("vocal")) return Colors.Tomato;
+            if (source.Contains("guitar")) return Colors.SpringGreen;
+            if (source.Contains("piano")) return Colors.DeepSkyBlue;
+            if (source.Contains("bass")) return Colors.Gold;
+            if (source.Contains("drum")) return Colors.MediumOrchid;
+            
+            return Colors.LightGray;
         }
     }
 }

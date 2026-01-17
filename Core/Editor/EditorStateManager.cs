@@ -33,35 +33,13 @@ namespace RhythmBeatmapEditor.Core.Editor
         {
             GD.Print($"[StateManager] Mode Changed: {(isEditMode ? "EDIT" : "PLAY")}");
             
-            // 1. Inspector Visibility
+            // 1. Handle Inspector Visibility (Causes UI Shift)
             if (Inspector != null)
             {
-                // Force Hide in Play Mode.
-                // In Edit Mode, it depends on selection (managed by Inspector logic)
                 Inspector.SetEditMode(isEditMode);
-                
-                if (!isEditMode) 
-                {
-                    Inspector.Visible = false; 
-                }
-                else
-                {
-                    Inspector.Visible = true;
-                } 
+                Inspector.Visible = isEditMode;
             }
             
-            // 2. Timeline Input
-            if (Timeline != null)
-            {
-                // Timeline might want to disable input during playback?
-                // Currently handled by `if (!IsEditMode) return` checks in Input.
-            }
-            
-            // 3. Song Panel
-            if (SongPanel != null)
-            {
-                // Song Panel stays visible? User didn't request hiding it.
-            }
         }
     }
 }

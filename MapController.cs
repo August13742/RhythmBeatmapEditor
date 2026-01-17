@@ -15,9 +15,6 @@ namespace RhythmBeatmapEditor
         [Export] public SongControlPanel SongPanel{get;private set;}
         private EditorContext _context;
         
-        // Paths (Hardcoded for prototype)
-        private const string TEST_SONG_PATH_RELATIVE = "res://TestData/Music/betelgeuse.mp3";
-        private const string TEST_MAP_PATH_RELATIVE = "res://TestData/Beatmap/HARD.json";
         private int _noteIndex = 0;
         private Core.Audio.SynthManager _synth;
 

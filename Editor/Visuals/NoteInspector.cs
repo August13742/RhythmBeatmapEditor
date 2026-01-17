@@ -27,10 +27,13 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         private Button _btnRevertSelected; 
         private Button _btnApply;
         
+        private OptionButton _optSource;
+
         public override void _Ready()
         {
             // Bind Nodes
             _inspectorContainer = GetNode<Control>("%Inspector");
+            _optSource = GetNode<OptionButton>("%OptSource");
             
             // Time
             _btnTimeMinusBig = GetNode<Button>("%BtnTimeMinusBig");
@@ -84,7 +87,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 _context.OnSelectionChanged -= OnSelectionChanged;
             }
         }
-        
+
         private void SetupLogic()
         {
              // Revert Logic
@@ -104,12 +107,16 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _btnPitchPlus.Pressed += () => ModifyPitch(1);
             _btnPitchPlusOct.Pressed += () => ModifyPitch(12);
             
+            // Source Input
+            _optSource.ItemSelected += OnSourceSelected;
+            
             _btnApply.Pressed += ApplyEdits; 
             
             // Focus Management
             _btnPlaySFX.FocusMode = FocusModeEnum.None;
             _btnRevertSelected.FocusMode = FocusModeEnum.None;
             _btnApply.FocusMode = FocusModeEnum.None;
+            _optSource.FocusMode = FocusModeEnum.None;
             
             _btnTimeMinusBig.FocusMode = FocusModeEnum.None;
             _btnTimeMinusSmall.FocusMode = FocusModeEnum.None;
@@ -120,6 +127,45 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _btnPitchMinus.FocusMode = FocusModeEnum.None;
             _btnPitchPlus.FocusMode = FocusModeEnum.None;
             _btnPitchPlusOct.FocusMode = FocusModeEnum.None;
+        }
+
+        // Helper to map index to source string
+        private string GetSourceFromIndex(int index)
+        {
+            return index switch {
+                0 => "vocals_lead",
+                1 => "guitar",
+                2 => "piano",
+                3 => "bass",
+                4 => "drums",
+                _ => "other"
+            };
+        }
+        
+        // Helper to map source string to index
+        private int GetIndexFromSource(string src)
+        {
+            if (string.IsNullOrEmpty(src)) return 5;
+            src = src.ToLower();
+            if (src.Contains("vocal")) return 0;
+            if (src.Contains("guitar")) return 1;
+            if (src.Contains("piano")) return 2;
+            if (src.Contains("bass")) return 3;
+            if (src.Contains("drum")) return 4;
+            return 5; 
+        }
+
+        private void OnSourceSelected(long index)
+        {
+            if (_context == null || _context.SelectedNotes.Count != 1) return;
+            
+            var note = System.Linq.Enumerable.First(_context.SelectedNotes);
+            if (note.State != NoteEvent.NoteState.Dirty) _context.CaptureSnapshot(_context.SelectedNotes);
+            
+            note.Source = GetSourceFromIndex((int)index);
+            
+            _context.RefreshSelectionUI(); 
+            _context.EmitSignal(EditorContext.SignalName.BeatmapLoaded); // Trigger redraw
         }
 
         private void OnSelectionChanged()
@@ -146,6 +192,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                     var note = System.Linq.Enumerable.First(notes);
                     _lblInspectorTime.Text = $"{note.Time:F3}";
                     _lblInspectorPitch.Text = $"{note.Pitch:0}";
+                    _optSource.Select(GetIndexFromSource(note.Source));
+                    _optSource.Disabled = false;
                     
                     _btnPlaySFX.Disabled = false;
                     SetEditControlsEnabled(true);
@@ -155,6 +203,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                     // Multi Select: Disable specific property editing (for now)
                     _lblInspectorTime.Text = "---";
                     _lblInspectorPitch.Text = "---";
+                    _optSource.Disabled = true;
                     
                     _btnPlaySFX.Disabled = false;
                     SetEditControlsEnabled(false);
@@ -165,7 +214,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 _inspectorContainer.Visible = false;
             }
         }
-        
+
         private void SetEditControlsEnabled(bool enabled)
         {
             _btnTimeMinusBig.Disabled = !enabled;
@@ -219,7 +268,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             
             _context.RefreshSelectionUI();
         }
-        
+
         private void PlayNoteSFX(NoteEvent note)
         {
             if (_context == null || note == null) return;
@@ -228,19 +277,22 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             int midi = (int)note.Pitch;
             SFXResource res = null;
             
+            int lane = note.Lane;
+            int maxLanes = _context.MaxLanes;
+
             if (src.Contains("drum"))
             {
                  var type = VocalSynthesiser.InstrumentType.Snare;
                  if (midi < 38) type = VocalSynthesiser.InstrumentType.Kick;
-                 res = VocalSynthesiser.GenerateDrums(type);
+                 res = VocalSynthesiser.GenerateDrums(type, volume: note.Volume, lane: lane, maxLanes: maxLanes);
             }
             else if (src.Contains("vocal"))
             {
-                 res = VocalSynthesiser.GenerateVocal(midi, VocalSynthesiser.VowelType.A);
+                 res = VocalSynthesiser.GenerateVocal(midi, VocalSynthesiser.VowelType.A, volume: note.Volume, lane: lane, maxLanes: maxLanes);
             }
             else
             {
-                 res = VocalSynthesiser.GenerateInstrument(midi,duration:0.15f);
+                 res = VocalSynthesiser.GenerateInstrument(midi, duration: 0.15f, volume: note.Volume, lane: lane, maxLanes: maxLanes);
             }
             
             if (res != null && res.Clips.Length > 0 && res.Clips[0] != null)

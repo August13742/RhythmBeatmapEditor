@@ -209,10 +209,6 @@ public partial class EditorContext : Node
 
     #endregion
     
-
-
-
-
     #region API - General
     
     public void LoadBeatmapJSON(string jsonContent)

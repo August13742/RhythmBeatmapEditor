@@ -70,7 +70,45 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 24
 text = "00:00"
 
-[node name="Control" type="Control" parent="VBoxContainer/Controls"]
+[node name="VSeparator" type="VSeparator" parent="VBoxContainer/Controls" unique_id=1455289627]
+layout_mode = 2
+
+[node name="VolumeControls" type="HBoxContainer" parent="VBoxContainer/Controls" unique_id=1167823433]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LblMusic" type="Label" parent="VBoxContainer/Controls/VolumeControls" unique_id=257065950]
+layout_mode = 2
+text = "Music"
+
+[node name="SliderMusicVol" type="HSlider" parent="VBoxContainer/Controls/VolumeControls" unique_id=741852963]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 0
+max_value = 1.5
+step = 0.05
+value = 0.75
+
+[node name="VSeparator2" type="VSeparator" parent="VBoxContainer/Controls/VolumeControls" unique_id=114460636]
+layout_mode = 2
+
+[node name="LblSFX" type="Label" parent="VBoxContainer/Controls/VolumeControls" unique_id=122622742]
+layout_mode = 2
+text = "SFX"
+
+[node name="SliderSFXVol" type="HSlider" parent="VBoxContainer/Controls/VolumeControls" unique_id=963258741]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(80, 0)
+layout_mode = 2
+size_flags_vertical = 4
+focus_mode = 0
+max_value = 1.5
+step = 0.05
+value = 1.0
+
+[node name="Control" type="Control" parent="VBoxContainer/Controls" unique_id=1882243505]
 layout_mode = 2
 size_flags_horizontal = 3
 
@@ -97,5 +135,4 @@ title = "Confirm Revert"
 initial_position = 2
 size = Vector2i(300, 100)
 ok_button_text = "Yes, Revert All"
-cancel_button_text = "Cancel"
 dialog_text = "Are you sure you want to revert ALL unsaved changes in this session?"

@@ -38,6 +38,12 @@ public class NoteEvent
     public string Source { get; set; } = "";
 
     /// <summary>
+    /// Volume coefficient (0.0 to 1.0+).
+    /// </summary>
+    [JsonPropertyName("vol")]
+    public float Volume { get; set; } = 1.0f;
+
+    /// <summary>
     /// Runtime selection state. Not recognized during serialization usually.
     /// </summary>
     [NonSerialized]

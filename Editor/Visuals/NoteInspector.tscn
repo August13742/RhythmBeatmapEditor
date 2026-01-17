@@ -29,6 +29,33 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 
+[node name="SourceBox" type="HBoxContainer" parent="VBoxContainer/Inspector"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="VBoxContainer/Inspector/SourceBox"]
+layout_mode = 2
+text = "Source:"
+
+[node name="OptSource" type="OptionButton" parent="VBoxContainer/Inspector/SourceBox" unique_id=852369741]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+item_count = 6
+selected = 0
+popup/item_0/text = "Vocals"
+popup/item_0/id = 0
+popup/item_1/text = "Guitar"
+popup/item_1/id = 1
+popup/item_2/text = "Piano"
+popup/item_2/id = 2
+popup/item_3/text = "Bass"
+popup/item_3/id = 3
+popup/item_4/text = "Drums"
+popup/item_4/id = 4
+popup/item_5/text = "Other"
+popup/item_5/id = 5
+
 [node name="Label" type="Label" parent="VBoxContainer/Inspector" unique_id=2005309097]
 layout_mode = 2
 text = "Selected Note Timing:"
