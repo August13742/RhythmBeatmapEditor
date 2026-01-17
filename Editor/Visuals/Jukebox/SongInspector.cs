@@ -205,6 +205,12 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             if (string.IsNullOrEmpty(_selectedMapPath)) return;
             
             string songPath = ProjectSettings.GlobalizePath($"res://Music/{_currentSongName}.mp3");
+
+            // Stop Jukebox/Preview Music so it doesn't overlap with the Editor
+            if (AudioManager.Instance != null)
+            {
+                AudioManager.Instance.StopMusic(0.5f);
+            }
             
             // Set Session Data
             SessionData.CurrentSongPath = songPath;
