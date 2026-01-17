@@ -76,7 +76,7 @@ namespace RhythmBeatmapEditor
             {
                 // Error: No session data (direct launch not supported for now unless mocked, but we prefer Jukebox flow)
                 GD.PrintErr("[MapController] No Session Data! Returning to Jukebox.");
-                GetTree().ChangeSceneToFile(jukeboxPath);
+                Utility.CrossfadeManager.Instance.LoadScene(jukeboxPath);
                 return;
             }
             
@@ -88,7 +88,7 @@ namespace RhythmBeatmapEditor
             else
             {
                  GD.PrintErr($"[Error] Song not found: {songPath}");
-                 GetTree().ChangeSceneToFile(jukeboxPath);
+                 Utility.CrossfadeManager.Instance.LoadScene(jukeboxPath);
                  return;
             }
             
@@ -101,7 +101,7 @@ namespace RhythmBeatmapEditor
             else
             {
                 GD.PrintErr($"[Error] Map not found: {mapPath}");
-                GetTree().ChangeSceneToFile(jukeboxPath);
+                Utility.CrossfadeManager.Instance.LoadScene(jukeboxPath);
             }
         }
         

@@ -50,7 +50,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
         private void OnBackInternal()
         {
             AudioManager.Instance?.StopMusic();
-            GetTree().ChangeSceneToFile("res://UI/MainMenu.tscn");
+            Utility.CrossfadeManager.Instance.LoadScene("res://UI/MainMenu.tscn");
         }
     }
 }

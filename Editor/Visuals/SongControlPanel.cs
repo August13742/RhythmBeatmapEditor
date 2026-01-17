@@ -74,6 +74,12 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             
             _sliderMusicVol.Value = initialMusicVol;
             _sliderSFXVol.Value = initialSFXVol;
+            
+            if (_context.AudioController != null && _sliderProgress != null)
+            {
+                float len = _context.AudioController.GetLength();
+                if (len > 0.1f) _sliderProgress.MaxValue = len;
+            }
         }
         
         public override void _ExitTree()
@@ -200,9 +206,6 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             if (_sliderProgress != null && !_isDraggingSlider) 
             {
                 _sliderProgress.SetValueNoSignal(time);
-                
-                // Smart MaxValue update
-                if (time > _sliderProgress.MaxValue) _sliderProgress.MaxValue = time + 10;
             }
         }
     }

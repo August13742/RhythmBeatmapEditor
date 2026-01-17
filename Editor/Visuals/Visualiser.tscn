@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" uid="uid://08h24ixt4lfm" path="res://Editor/Visuals/SongControlPanel.tscn" id="2_u3e1j"]
 [ext_resource type="PackedScene" uid="uid://dwsbi6vi475hi" path="res://Editor/Visuals/TimelineView.tscn" id="2_xklu0"]
 [ext_resource type="Script" uid="uid://ikh5xt0ukhj3" path="res://Core/Editor/EditorStateManager.cs" id="3_state"]
-[ext_resource type="PackedScene" path="res://Editor/Visuals/NoteInspector.tscn" id="4_inspector"]
+[ext_resource type="PackedScene" uid="uid://c8d24ixt4lfm" path="res://Editor/Visuals/NoteInspector.tscn" id="4_inspector"]
 
 [node name="MapController" type="Node" unique_id=1065567127 node_paths=PackedStringArray("TimelineUI", "Inspector", "StateManager", "SongPanel")]
 script = ExtResource("1_71ux2")
@@ -33,6 +33,7 @@ size_flags_vertical = 3
 [node name="TimelineView" parent="VBoxContainer/HBoxContainer" unique_id=2050564706 instance=ExtResource("2_xklu0")]
 layout_mode = 2
 size_flags_horizontal = 3
+PixelsPerSecond = 1000.0
 
 [node name="NoteInspector" parent="VBoxContainer/HBoxContainer" unique_id=1217724669 instance=ExtResource("4_inspector")]
 custom_minimum_size = Vector2(300, 0)

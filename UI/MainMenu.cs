@@ -19,7 +19,8 @@ namespace RhythmBeatmapEditor.UI
          
          private void OnPlayPressed()
          {
-             GetTree().ChangeSceneToFile("uid://jukebox");
+             // GetTree().ChangeSceneToFile("uid://jukebox");
+             Utility.CrossfadeManager.Instance.LoadScene("uid://jukebox");
          }
          
          private void OnQuitPressed()

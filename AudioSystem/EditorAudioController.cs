@@ -122,6 +122,12 @@ public partial class EditorAudioController : Node
         // but simple GetPlaybackPosition is often enough for editor resolution unless extremely low latency is needed.
         return _player.GetPlaybackPosition();
     }
+
+    public float GetLength()
+    {
+        if (_player.Stream == null) return 0f;
+        return (float)_player.Stream.GetLength();
+    }
     
     // --- Volume Control ---
     public float MusicVolume { get; private set; } = 1.0f;

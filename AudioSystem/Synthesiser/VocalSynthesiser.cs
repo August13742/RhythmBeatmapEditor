@@ -10,8 +10,7 @@ public static class VocalSynthesiser
     #region Enums & Config
     public enum VowelType { A, I, U, E, O }
     
-    // Simplified: We only need Power for the vocal mode requested
-    public enum VocalCharacter { Power, Soft, Pure, Dark, Cute, Opera, Robot }
+    public enum VocalCharacter { Power, Crystal }
 
     public enum InstrumentType { Kick, Snare, Bass, Square, Piano, Guitar, Other }
     
@@ -68,7 +67,7 @@ public static class VocalSynthesiser
         int profileCount = Enum.GetNames(typeof(VocalCharacter)).Length;
         _profiles = new VocalProfile[profileCount];
         _profiles[(int)VocalCharacter.Power] = new() { Name = "Power", FormantShift = 1.08f, Breathiness = 0.01f, Tension = 0.8f, MasterGain = 0.9f };
-        
+        _profiles[(int)VocalCharacter.Crystal] = new() { Name = "Crystal", FormantShift = 1.02f, Breathiness = 0.05f, Tension = 0.5f, MasterGain = 1.0f };
         _Initialised = true;
     }
     #endregion
@@ -120,7 +119,6 @@ public static class VocalSynthesiser
     public static SFXResource GenerateVocal(int midi, VowelType vowel, float duration = 0.25f, VocalCharacter character = VocalCharacter.Power, float pitchVariance = 0.0f, float volume = 1.0f, int lane = 2, int maxLanes = 4)
     {
         InitialisePresets();
-        // Python: duration = max(duration, 0.45) -> Adjusted for C# feel
         duration = Mathf.Max(duration, 0.35f); 
 
         var profile = _profiles[(int)character] ?? _profiles[0];
@@ -205,8 +203,7 @@ public static class VocalSynthesiser
         float peak = 0f;
         for(int i=0; i<totalSamples; i++) if(Math.Abs(wave[i]) > peak) peak = Math.Abs(wave[i]);
         if (peak > 0.00001f) {
-            // Apply Tunable Volume for Vocal (Mode dependent? sticking to 1.0 for vocal as lead)
-            float norm = (1.0f / peak) * 0.25f * profile.MasterGain;
+            float norm = (1.0f / peak) * 0.45f * profile.MasterGain;
             for(int i=0; i<totalSamples; i++) wave[i] *= norm;
         }
 

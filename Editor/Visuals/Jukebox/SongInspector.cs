@@ -27,9 +27,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             public string difficulty { get; set; }
         }
         
-        // Helper for raw parsing if needed, but Godot's JSON or System.Text.Json is fine.
-        // We only need to peek at the file.
-        
+
         public override void _Ready()
         {
             _lblSongName = GetNode<Label>("LabelSongName");
@@ -217,14 +215,15 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             SessionData.CurrentMapPath = _selectedMapPath;
             
             // Change Scene
+            // Change Scene with Crossfade
             if (VisualiserScene != null)
             {
-                GetTree().ChangeSceneToPacked(VisualiserScene);
+                Utility.CrossfadeManager.Instance.LoadScene(VisualiserScene);
             }
             else
             {
                  // Fallback based on typical path
-                 GetTree().ChangeSceneToFile("uid://57yv48lyutsu");
+                 Utility.CrossfadeManager.Instance.LoadScene("uid://57yv48lyutsu");
             }
         }
     }
