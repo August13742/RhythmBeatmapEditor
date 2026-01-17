@@ -8,6 +8,9 @@ public partial class EditorHistory : Node
 {
     private Dictionary<NoteEvent, NoteEvent> _originalSnapshot = new();
     
+    // API: Access to currently edited notes (Dirty List)
+    public IEnumerable<NoteEvent> ModifiedNotes => _originalSnapshot.Keys;
+    
     public event System.Action OnHistoryChanged;
 
     public void CaptureSnapshot(IEnumerable<NoteEvent> notes)
@@ -42,6 +45,27 @@ public partial class EditorHistory : Node
         {
             GD.Print($"[EditorHistory] Committing edits for {_originalSnapshot.Count} notes.");
             _originalSnapshot.Clear();
+            OnHistoryChanged?.Invoke();
+        }
+    }
+    
+    public void CommitSpecificInput(IEnumerable<NoteEvent> notes)
+    {
+        bool changed = false;
+        foreach(var note in notes)
+        {
+            if (_originalSnapshot.ContainsKey(note))
+            {
+                _originalSnapshot.Remove(note);
+                // Note: We don't restore state, we assume current state is now valid/committed.
+                // We just stop tracking it as "Dirty".
+                note.State = NoteEvent.NoteState.Normal; 
+                changed = true;
+            }
+        }
+        
+        if (changed)
+        {
             OnHistoryChanged?.Invoke();
         }
     }

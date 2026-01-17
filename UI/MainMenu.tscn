@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://kutn31k4ypy4"]
 
-[ext_resource type="Script" path="res://UI/MainMenu.cs" id="1_script"]
+[ext_resource type="Script" uid="uid://c748aqnfgr3jk" path="res://UI/MainMenu.cs" id="1_script"]
 
-[node name="MainMenu" type="Control"]
+[node name="MainMenu" type="Control" unique_id=1460162826]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_script")
 
-[node name="Panel" type="Panel" parent="."]
+[node name="Panel" type="Panel" parent="." unique_id=1337020558]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -19,7 +19,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="CenterContainer" type="CenterContainer" parent="Panel"]
+[node name="CenterContainer" type="CenterContainer" parent="Panel" unique_id=14572063]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -27,24 +27,31 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="VBoxContainer" type="VBoxContainer" parent="Panel/CenterContainer"]
+[node name="VBoxContainer2" type="VBoxContainer" parent="Panel/CenterContainer" unique_id=320777077]
 layout_mode = 2
-theme_override_constants/separation = 20
 
-[node name="Label" type="Label" parent="Panel/CenterContainer/VBoxContainer"]
+[node name="Label" type="Label" parent="Panel/CenterContainer/VBoxContainer2" unique_id=1100037967]
 layout_mode = 2
 theme_type_variation = &"HeaderLarge"
-text = "RHYTHM BEATMAP EDITOR"
+theme_override_font_sizes/font_size = 38
+text = "Rhythm Beatmap Editor (Prototype)"
 horizontal_alignment = 1
 
-[node name="BtnPlay" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="Panel/CenterContainer/VBoxContainer2" unique_id=1356339777]
+layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 20
+
+[node name="BtnPlay" type="Button" parent="Panel/CenterContainer/VBoxContainer2/VBoxContainer" unique_id=468559051]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 50)
 layout_mode = 2
+theme_override_font_sizes/font_size = 24
 text = "Jukebox / Play"
 
-[node name="BtnQuit" type="Button" parent="Panel/CenterContainer/VBoxContainer"]
+[node name="BtnQuit" type="Button" parent="Panel/CenterContainer/VBoxContainer2/VBoxContainer" unique_id=14490149]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 50)
 layout_mode = 2
+theme_override_font_sizes/font_size = 24
 text = "Quit"

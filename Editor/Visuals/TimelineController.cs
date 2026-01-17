@@ -178,6 +178,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 // Pass the cached array, not the Scene Nodes
                 LayoutNote(kvp.Value, kvp.Key, time, hitY);
             }
+            
+            UpdateGhostsAndOverlays(time, hitY);
 
             GhostLayer.Commit();
         }
@@ -234,28 +236,81 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 vis.OnDragEnd -= HandleNoteDragEnd;
                 _notePool.Return(vis);
                 _activeVisuals.Remove(data);
+                
+                // Deselect if active (Out of range)
+                if (_context != null && _context.IsSelected(data))
+                {
+                   _context.DeselectNote(data);
+                }
             }
         }
         
         // --- Critical Optimisation: Layout Note ---
         private void LayoutNote(NoteObject vis, NoteEvent data, float time, float hitY)
         {
+            Rect2 rect = CalculateNoteRect(data.Lane, data.Time, data.Duration, time, hitY);
+            if (rect.Size.X > 0)
+            {
+                vis.Position = rect.Position;
+                vis.Size = rect.Size;
+            }
+        }
+        
+        private Rect2 CalculateNoteRect(int lane, float noteTime, float duration, float refTime, float hitY)
+        {
             float pps = _context.ScrollSpeed;
-            float timeDiff = data.Time - time;
+            float timeDiff = noteTime - refTime;
             float yPos = hitY - (timeDiff * pps);
-            float h = Math.Max(15f, data.Duration * pps);
+            float h = Math.Max(15f, duration * pps);
 
             // READ FROM CACHE. No GlobalPosition calls.
-            if (data.Lane >= 0 && data.Lane < _laneCache.Length)
+            if (lane >= 0 && _laneCache != null && lane < _laneCache.Length)
             {
-                ref var layout = ref _laneCache[data.Lane]; // Ref for slight perf boost
+                var layout = _laneCache[lane]; 
                 
-                float noteW = layout.Width * NoteWidthPercent; // Math is cheap
+                float noteW = layout.Width * NoteWidthPercent;
                 float padX = (layout.Width - noteW) / 2;
 
-                vis.Position = new Vector2(layout.LocalX + padX, yPos - h);
-                vis.Size = new Vector2(noteW, h);
+                return new Rect2(layout.LocalX + padX, yPos - h, noteW, h);
             }
+            return new Rect2();
+        }
+        
+        private void UpdateGhostsAndOverlays(float time, float hitY)
+        {
+             // Iterate Dirty List
+             foreach(var note in _context.GetDirtyNotes())
+             {
+                  var original = _context.GetOriginal(note);
+                  
+                  // 1. Ghost Logic (Show if Moved)
+                  // Ghost shows Original Position
+                  if (Mathf.Abs(note.Time - original.Time) > 0.001f || note.Lane != original.Lane)
+                  {
+                      Color col = GetSourceColor(original.Source);
+                      col.A = 0.4f; // Ghost alpha
+                      
+                      Rect2 ghostRect = CalculateNoteRect(original.Lane, original.Time, original.Duration, time, hitY);
+                      Rect2 targetRect = CalculateNoteRect(note.Lane, note.Time, note.Duration, time, hitY);
+                      
+                      // Safety: GhostLayer handles coordinate drawing
+                      GhostLayer.AddGhost(ghostRect, targetRect.GetCenter(), col);
+                  }
+                  
+                  // 2. Delta Label Logic (Show on Active Visual only)
+                  if (_activeVisuals.TryGetValue(note, out var vis))
+                  {
+                      float diff = note.Time - original.Time;
+                      if (Mathf.Abs(diff) > 0.001f)
+                      {
+                          vis.SetDeltaText($"{(diff>0?"+":"")}{diff:F2}s");
+                      }
+                      else
+                      {
+                          vis.SetDeltaText(null);
+                      }
+                  }
+             }
         }
 
         private void HandleNoteInput(NoteObject source, InputEvent e) => _input.HandleNoteInput(source, e);
@@ -342,13 +397,15 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                     lane = new Control();
                     var bg = new ColorRect { 
                         Color = new Color(0.1f, 0.1f, 0.1f, i % 2 == 0 ? 0.3f : 0.2f),
-                        LayoutMode = 1, AnchorsPreset = (int)LayoutPreset.FullRect 
+                        LayoutMode = 1, AnchorsPreset = (int)LayoutPreset.FullRect,
+                        MouseFilter = MouseFilterEnum.Ignore // VITAL: Let input pass to lane
                     };
                     lane.AddChild(bg);
                 }
                 
                 lane.Name = $"Lane_{i}";
                 lane.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+                lane.MouseFilter = MouseFilterEnum.Stop; // VITAL: Catch input
                 lane.GuiInput += (e) => HandleLaneInput(e, i); // Capture index
                 LaneContainer.AddChild(lane);
             }

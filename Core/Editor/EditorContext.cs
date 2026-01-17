@@ -101,6 +101,8 @@ public partial class EditorContext : Node
     
     public void CaptureSnapshot(IEnumerable<NoteEvent> notes) => History.CaptureSnapshot(notes);
     public NoteEvent GetOriginal(NoteEvent note) => History.GetOriginal(note);
+    public IEnumerable<NoteEvent> GetDirtyNotes() => History.ModifiedNotes;
+    public void CommitNotes(IEnumerable<NoteEvent> notes) => History.CommitSpecificInput(notes);
     public void CommitEdits() => History.CommitEdits();
     
     // Revert ALL Changes

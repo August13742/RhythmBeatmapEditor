@@ -14,6 +14,8 @@ namespace RhythmBeatmapEditor.Core.Editor
         
         public void Initialise(EditorContext context)
         {
+            if (Context != null) Context.ModeChanged -= OnModeChanged;
+            
             Context = context;
             if (Context != null)
             {

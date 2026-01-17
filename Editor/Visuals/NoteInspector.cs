@@ -58,6 +58,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
 
         public void Initialise(EditorContext context)
         {
+            if (_context != null) _context.OnSelectionChanged -= OnSelectionChanged;
             _context = context;
             _context.OnSelectionChanged += OnSelectionChanged;
             
@@ -305,21 +306,11 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         {
             if (_context == null || _context.SelectedNotes.Count == 0) return;
             
-            bool changed = false;
-            foreach(var note in _context.SelectedNotes)
-            {
-                if (note.State == NoteEvent.NoteState.Dirty)
-                {
-                    note.State = NoteEvent.NoteState.Edited;
-                    changed = true;
-                }
-            }
+            // Commit changes to History (Clears Dirty List -> Removes Ghosts)
+            _context.CommitNotes(_context.SelectedNotes);
             
-            if (changed)
-            {
-                _context.RefreshSelectionUI();
-                _context.EmitSignal(EditorContext.SignalName.BeatmapLoaded); 
-            }
+            _context.RefreshSelectionUI();
+            _context.EmitSignal(EditorContext.SignalName.BeatmapLoaded); 
         }
     }
 }

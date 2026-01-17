@@ -217,6 +217,12 @@ public partial class TimelineInput : Node
                 
                 _context.AddNote(newNote);
             }
+            else if (!Input.IsKeyPressed(Key.Shift))
+            {
+                // Click on empty space -> Deselect
+                _context.ClearSelection();
+                _context.RefreshSelectionUI();
+            }
         }
     }
 }

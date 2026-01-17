@@ -70,7 +70,10 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _context = context;
             
             // Connect to Signals/Events
-            _context.Connect(EditorContext.SignalName.PlaybackTimeUpdated, Callable.From<float>(OnTimeUpdated));
+            if (!_context.IsConnected(EditorContext.SignalName.PlaybackTimeUpdated, Callable.From<float>(OnTimeUpdated)))
+            {
+                _context.Connect(EditorContext.SignalName.PlaybackTimeUpdated, Callable.From<float>(OnTimeUpdated));
+            }
             
             _sliderMusicVol.Value = initialMusicVol;
             _sliderSFXVol.Value = initialSFXVol;
