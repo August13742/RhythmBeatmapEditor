@@ -9,6 +9,7 @@ namespace RhythmBeatmapEditor
 {
     public partial class MapController : Node
     {
+        [Export] public bool ForceVocalSFX = false;
         [Export] public TimelineController TimelineUI { get; set; }
         [Export] public NoteInspector Inspector { get; set; }
         [Export] public EditorStateManager StateManager { get; set; }
@@ -47,6 +48,7 @@ namespace RhythmBeatmapEditor
             _context.BeatmapLoaded += OnBeatmapLoaded; 
             
             _synth = new Core.Audio.SynthManager { Name = "SynthManager" };
+            if(ForceVocalSFX)_synth.ForceVocal = ForceVocalSFX;
             AddChild(_synth); 
 
             // 1.5 Valdiate UI Overlays

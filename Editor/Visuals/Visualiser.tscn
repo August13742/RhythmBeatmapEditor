@@ -33,7 +33,7 @@ size_flags_vertical = 3
 [node name="TimelineView" parent="VBoxContainer/HBoxContainer" unique_id=2050564706 instance=ExtResource("2_xklu0")]
 layout_mode = 2
 size_flags_horizontal = 3
-PixelsPerSecond = 1000.0
+PixelsPerSecond = 1500.0
 
 [node name="NoteInspector" parent="VBoxContainer/HBoxContainer" unique_id=1217724669 instance=ExtResource("4_inspector")]
 custom_minimum_size = Vector2(300, 0)

@@ -7,6 +7,8 @@ namespace RhythmBeatmapEditor.Core.Audio;
 
 public partial class SynthManager : Node
 {
+    [Export] public bool ForceVocal { get; set; } = false;
+
     private Dictionary<string, SFXResource> _synthBank = new();
 
     public void Bake(BeatmapData data)
@@ -21,6 +23,12 @@ public partial class SynthManager : Node
             float bucket = VocalSynthesiser.GetBucket(note.Duration);
             int midi = (int)note.Pitch;
             string source = note.Source.ToLower();
+            
+            // Force vocal for non-drum instruments if ForceVocal is enabled
+            if (ForceVocal && !source.Contains("drum"))
+            {
+                source = "vocal";
+            }
             
             string key = $"{source}_{midi}_{bucket:F2}";
             if (uniqueKeys.Add(key))
@@ -72,6 +80,13 @@ public partial class SynthManager : Node
         float bucket = VocalSynthesiser.GetBucket(note.Duration);
         int midi = (int)note.Pitch;
         string source = note.Source.ToLower();
+        
+        // Force vocal for non-drum instruments if ForceVocal is enabled
+        if (ForceVocal && !source.Contains("drum"))
+        {
+            source = "vocal";
+        }
+        
         string key = $"{source}_{midi}_{bucket:F2}";
         
         if (_synthBank.TryGetValue(key, out var res))
