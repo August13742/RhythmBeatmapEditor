@@ -156,6 +156,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             int count = notes.Count;
             if (count > 0)
             {
+                if (_spawnStartIndex >= count)_spawnStartIndex = count - 1;
                 while (_spawnStartIndex > 0 && notes[_spawnStartIndex].Time > start) _spawnStartIndex--;
                 while (_spawnStartIndex < count && notes[_spawnStartIndex].Time < start) _spawnStartIndex++;
 
