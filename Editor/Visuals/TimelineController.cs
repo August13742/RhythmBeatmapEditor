@@ -20,6 +20,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         [Export] public float NoteWidthPercent { get; set; } = 0.95f;
 
         [ExportCategory("Scene References")]
+        [Export] public Control Highway { get; private set; } // New Highway Reference
+
         [Export] public Control LaneContainer { get; private set; }
         [Export] public Control NoteLayer { get; private set; }
         [Export] public GhostLayer GhostLayer { get; private set; }
@@ -56,7 +58,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         public override void _Ready()
         {
             // Validation
-            if (LaneContainer == null || NoteLayer == null || NoteScene == null)
+            if (LaneContainer == null || NoteLayer == null || NoteScene == null || Highway == null)
             {
                 GD.PrintErr("[TimelineController] Missing References.");
                 SetProcess(false);
@@ -80,7 +82,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _context = context;
             _currentMap = context.CurrentBeatmap;
             
-            _input.Initialise(context, this, NoteLayer, PixelsPerSecond);
+            // Pass Highway as root for coordinate checks
+            _input.Initialise(context, Highway, NoteLayer, PixelsPerSecond);
             _context.OnSelectionChanged += HandleExternalSelectionInfo;
 
             // 1. Setup Lanes
@@ -108,7 +111,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             if (_context == null) return;
             
             // Re-sync HitLine visual position only if screen size changed (handled by anchors usually) or offset changed
-            HitLine.Position = new Vector2(0, Size.Y - HitLineOffset);
+            // Relative to Highway Size
+            HitLine.Position = new Vector2(0, Highway.Size.Y - HitLineOffset);
 
             Tick(_context.PlaybackTime);
         }
@@ -172,7 +176,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             GhostLayer.Clear();
             
             
-            float hitY = Size.Y - HitLineOffset;
+            float hitY = Highway.Size.Y - HitLineOffset;
             
             foreach (var kvp in _activeVisuals)
             {
@@ -380,13 +384,16 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             // Check if we actually need to rebuild
             if (LaneContainer.GetChildCount() == laneCount) return;
 
-            // Clear
+            // Clear existing
             foreach (Node n in LaneContainer.GetChildren()) n.QueueFree();
-            
-            // Rebuild
+
+            Color laneBgColor = Color.Color8(20, 20, 25);
+            Color borderColor = Color.Color8(35, 35, 45);
+
             for (int i = 0; i < laneCount; i++)
             {
                 Control lane;
+
                 // Prefer Instantiation over 'new Control'
                 if (LaneScene != null)
                 {
@@ -394,24 +401,62 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 }
                 else
                 {
-                    // Fallback to procedural if no scene assigned
                     lane = new Control();
-                    var bg = new ColorRect { 
-                        Color = new Color(0.1f, 0.1f, 0.1f, i % 2 == 0 ? 0.3f : 0.2f),
-                        LayoutMode = 1, AnchorsPreset = (int)LayoutPreset.FullRect,
-                        MouseFilter = MouseFilterEnum.Ignore // VITAL: Let input pass to lane
+                    lane.Name = $"Lane_{i}";
+                    lane.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+                    lane.MouseFilter = MouseFilterEnum.Stop; 
+
+                    // 1. Background
+                    var bg = new ColorRect
+                    {
+                        Color = laneBgColor,
+                        LayoutMode = 1,
+                        AnchorsPreset = (int)LayoutPreset.FullRect,
+                        MouseFilter = MouseFilterEnum.Ignore
                     };
                     lane.AddChild(bg);
+
+                    // 2. Left Border (Standard Separator)
+                    var leftBorder = new ColorRect
+                    {
+                        Color = borderColor,
+                        CustomMinimumSize = new Vector2(2, 0),
+                        LayoutMode = 1,
+                        AnchorLeft = 0,
+                        AnchorRight = 0,
+                        AnchorTop = 0,
+                        AnchorBottom = 1,
+                        MouseFilter = MouseFilterEnum.Ignore
+                    };
+                    lane.AddChild(leftBorder);
+
+                    // 3. Right Border (Sealing the Last Lane)
+                    if (i == laneCount - 1)
+                    {
+                        var rightBorder = new ColorRect
+                        {
+                            Color = borderColor,
+                            CustomMinimumSize = new Vector2(2, 0),
+                            LayoutMode = 1,
+                            AnchorLeft = 1,  // Anchor to Right Edge
+                            AnchorRight = 1, 
+                            AnchorTop = 0,
+                            AnchorBottom = 1,
+                            GrowHorizontal = GrowDirection.Begin, // Grow inwards (to the left)
+                            MouseFilter = MouseFilterEnum.Ignore
+                        };
+                        lane.AddChild(rightBorder);
+                    }
                 }
-                
-                lane.Name = $"Lane_{i}";
-                lane.SizeFlagsHorizontal = SizeFlags.ExpandFill;
-                lane.MouseFilter = MouseFilterEnum.Stop; // VITAL: Catch input
-                lane.GuiInput += (e) => HandleLaneInput(e, i); // Capture index
+
+                // Capture index for closure
+                int idx = i;
+                lane.GuiInput += (e) => HandleLaneInput(e, idx);
+
                 LaneContainer.AddChild(lane);
             }
-            
-            // Force cache refresh next frame
+
+            // Force cache refresh
             CallDeferred(nameof(RefreshLaneCache));
         }
 
@@ -431,7 +476,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         
         private void HandleLaneInput(InputEvent @event, int laneIndex)
         {
-             _input.HandleLaneInput(@event, laneIndex, HitLineOffset, Size.Y);
+             _input.HandleLaneInput(@event, laneIndex, HitLineOffset, Highway.Size.Y);
         }
 
         private Color GetSourceColor(string source)

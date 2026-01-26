@@ -5,7 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://byauknmek3lyt" path="res://Editor/Visuals/NoteObject.tscn" id="2_x8h6v"]
 [ext_resource type="Script" uid="uid://cihhr4jvctbhn" path="res://Editor/Visuals/GhostLayer.cs" id="3_ghost"]
 
-[node name="TimelineView" type="Control" unique_id=2050564706 node_paths=PackedStringArray("LaneContainer", "NoteLayer", "GhostLayer", "HitLine")]
+[node name="TimelineView" type="Control" unique_id=2050564706 node_paths=PackedStringArray("Highway", "LaneContainer", "NoteLayer", "GhostLayer", "HitLine")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -14,10 +14,11 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_wwt3p")
 NoteWidthPercent = 0.75
-LaneContainer = NodePath("LaneContainer")
-NoteLayer = NodePath("NoteLayer")
-GhostLayer = NodePath("GhostLayer")
-HitLine = NodePath("HitLine")
+Highway = NodePath("AspectRatioContainer/Highway")
+LaneContainer = NodePath("AspectRatioContainer/Highway/LaneContainer")
+NoteLayer = NodePath("AspectRatioContainer/Highway/NoteLayer")
+GhostLayer = NodePath("AspectRatioContainer/Highway/GhostLayer")
+HitLine = NodePath("AspectRatioContainer/Highway/HitLine")
 NoteScene = ExtResource("2_x8h6v")
 
 [node name="Background" type="ColorRect" parent="." unique_id=859254317]
@@ -29,7 +30,19 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.08, 0.08, 0.1, 1)
 
-[node name="LaneContainer" type="HBoxContainer" parent="." unique_id=2098093159]
+[node name="AspectRatioContainer" type="AspectRatioContainer" parent="." unique_id=68210570]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+ratio = 0.6
+
+[node name="Highway" type="Control" parent="AspectRatioContainer" unique_id=1097440592]
+layout_mode = 2
+
+[node name="LaneContainer" type="HBoxContainer" parent="AspectRatioContainer/Highway" unique_id=2098093159]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -38,7 +51,7 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 2
 
-[node name="GhostLayer" type="Control" parent="." unique_id=108861888]
+[node name="GhostLayer" type="Control" parent="AspectRatioContainer/Highway" unique_id=108861888]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -48,10 +61,10 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("3_ghost")
 
-[node name="NoteLayer" parent="." unique_id=1406410674 instance=ExtResource("2_7txip")]
+[node name="NoteLayer" parent="AspectRatioContainer/Highway" unique_id=1406410674 instance=ExtResource("2_7txip")]
 layout_mode = 1
 
-[node name="HitLine" type="ColorRect" parent="." unique_id=580150675]
+[node name="HitLine" type="ColorRect" parent="AspectRatioContainer/Highway" unique_id=580150675]
 custom_minimum_size = Vector2(0, 2)
 layout_mode = 1
 anchors_preset = 12

@@ -3,6 +3,14 @@
 [ext_resource type="Script" uid="uid://5pl0g1nfq27a" path="res://Editor/Visuals/NoteObject.cs" id="1_w2uts"]
 [ext_resource type="Texture2D" uid="uid://cyboep0aq643d" path="res://UI/button_corner_rectangle2_1.png" id="2_qh8dx"]
 
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_border"]
+bg_color = Color(0.6, 0.6, 0.6, 0)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+
 [node name="NoteObject" type="Control" unique_id=301879659 node_paths=PackedStringArray("_visualRect", "_lblDelta")]
 layout_mode = 3
 anchors_preset = 0
@@ -24,6 +32,17 @@ grow_vertical = 2
 mouse_filter = 2
 texture = ExtResource("2_qh8dx")
 expand_mode = 1
+
+[node name="Border" type="Panel" parent="VisualRect" unique_id=568044613]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_border")
 
 [node name="LabelDelta" type="Label" parent="." unique_id=545193959]
 unique_name_in_owner = true
