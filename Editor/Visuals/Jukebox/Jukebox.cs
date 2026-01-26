@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using AudioSystem;
+
 namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
 {
     public partial class Jukebox : Control
@@ -15,36 +16,36 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             _songInspector = GetNode<SongInspector>("%SongInspector");
             _btnBack = GetNode<Button>("%BtnBack");
             
-            _songList.SongSelected += (name) => 
+            // Update lambda to accept both arguments
+            _songList.SongSelected += (name, path) => 
             {
-                _songInspector.Inspect(name);
-                PlaySongPreview(name);
+                _songInspector.Inspect(name,path);
+                PlaySongPreview(path);
             };
-            _btnBack.Pressed += OnBackInternal; // avoid name collision with OnBack
+            
+            _btnBack.Pressed += OnBackInternal;
         }
         
-        private void PlaySongPreview(string songName)
+        private void PlaySongPreview(string resourcePath)
         {
-            if (string.IsNullOrEmpty(songName)) return;
+            if (string.IsNullOrEmpty(resourcePath)) return;
 
-            string path = $"res://Music/{songName}.mp3";
-            if (!ResourceLoader.Exists(path))
+            if (!ResourceLoader.Exists(resourcePath))
             {
-                GD.PrintErr($"[Jukebox] Song not found: {path}");
+                GD.PrintErr($"[Jukebox] Song not found: {resourcePath}");
                 return;
             }
 
-            var stream = ResourceLoader.Load<AudioStream>(path);
+            var stream = ResourceLoader.Load<AudioStream>(resourcePath);
             var musicRes = new MusicResource
             {
                 Clip = stream,
                 Volume = 1.0f,
-                FadeTime = 1.0f, // smooth crossfade
+                FadeTime = 1.0f,
                 Loop = true
             };
         
             AudioManager.Instance?.PlayMusic(musicRes);
-
         }
 
         private void OnBackInternal()

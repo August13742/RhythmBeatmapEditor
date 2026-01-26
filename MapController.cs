@@ -1,7 +1,6 @@
 using Godot;
 using System.Collections.Generic;
 using RhythmBeatmapEditor.Core.Editor;
-using System.IO;
 using AudioSystem;
 using RhythmBeatmapEditor.Editor.Visuals;
 
@@ -13,9 +12,9 @@ namespace RhythmBeatmapEditor
         [Export] public TimelineController TimelineUI { get; set; }
         [Export] public NoteInspector Inspector { get; set; }
         [Export] public EditorStateManager StateManager { get; set; }
-        [Export] public SongControlPanel SongPanel{get;private set;}
-        private EditorContext _context;
+        [Export] public SongControlPanel SongPanel { get; private set; }
         
+        private EditorContext _context;
         private int _noteIndex = 0;
         private Core.Audio.SynthManager _synth;
         private NodePath jukeboxPath = "uid://jukebox";
@@ -27,37 +26,27 @@ namespace RhythmBeatmapEditor
             // 0. Validation
             if (TimelineUI == null)
             {
-                GD.PrintErr("[MapController] TimelineUI is not assigned! Please assign it in the Inspector.");
+                GD.PrintErr("[MapController] TimelineUI is not assigned!");
                 SetProcess(false);
                 return;
             }
 
             // 1. Systems Setup
-            // Ensure AudioManager exists
             if (AudioManager.Instance == null) 
             {
                 var am = new AudioManager { Name = "AudioManager" };
                 AddChild(am);
             }
             
-            // Setup Logic Context
             _context = new EditorContext { Name = "EditorContext", ScrollSpeed = 600f };
             AddChild(_context);
-
-            // Connect Signals
             _context.BeatmapLoaded += OnBeatmapLoaded; 
             
             _synth = new Core.Audio.SynthManager { Name = "SynthManager" };
-            if(ForceVocalSFX)_synth.ForceVocal = ForceVocalSFX;
+            if (ForceVocalSFX) _synth.ForceVocal = ForceVocalSFX;
             AddChild(_synth); 
 
-            // 1.5 Valdiate UI Overlays
-            if(SongPanel == null) 
-            {
-                 // Assuming Scene Workflow, this should be set in Inspector.
-                 // If not, we warn.
-                 GD.PrintErr("[MapController] Song Control Panel not assigned!");
-            }
+            if (SongPanel == null) GD.PrintErr("[MapController] Song Control Panel not assigned!");
 
             // 2. Load Content
             CallDeferred(nameof(LoadContent));
@@ -65,39 +54,47 @@ namespace RhythmBeatmapEditor
 
         private void LoadContent()
         {
-            string songPath, mapPath;
+            string rawSongPath, rawMapPath;
 
-            // Check SessionData
+            // 1. Retrieve Data
             if (!string.IsNullOrEmpty(Core.SessionData.CurrentSongPath))
             {
-                songPath = Core.SessionData.CurrentSongPath;
-                mapPath = Core.SessionData.CurrentMapPath;
-                GD.Print($"[MapController] Loading from Session: {songPath}");
+                rawSongPath = Core.SessionData.CurrentSongPath;
+                rawMapPath = Core.SessionData.CurrentMapPath;
+                GD.Print($"[MapController] Loading from Session: {rawSongPath}");
             }
             else
             {
-                // Error: No session data (direct launch not supported for now unless mocked, but we prefer Jukebox flow)
                 GD.PrintErr("[MapController] No Session Data! Returning to Jukebox.");
                 Utility.CrossfadeManager.Instance.LoadScene(jukeboxPath);
                 return;
             }
             
-            // Audio
-            if (File.Exists(songPath))
+            // 2. Sanitize Paths
+            // Converts "E:/GodotProjects/..." back to "res://Music/..."
+            // This ensures ResourceLoader works in both Editor and Exported builds.
+            string songPath = ProjectSettings.LocalizePath(rawSongPath);
+            string mapPath = ProjectSettings.LocalizePath(rawMapPath);
+
+            // 3. Load Audio
+            // Use Godot.FileAccess
+            if (FileAccess.FileExists(songPath)) 
             {
                  _context.AudioController.LoadSong(songPath);
             }
             else
             {
-                 GD.PrintErr($"[Error] Song not found: {songPath}");
+                 GD.PrintErr($"[Error] Song not found at localized path: {songPath} (Raw: {rawSongPath})");
                  Utility.CrossfadeManager.Instance.LoadScene(jukeboxPath);
                  return;
             }
             
-            // Map
-            if (File.Exists(mapPath))
+            // 4. Load Map
+            if (FileAccess.FileExists(mapPath))
             {
-                string json = File.ReadAllText(mapPath);
+                // Use FileAccess to read text to support .pck files
+                using var file = FileAccess.Open(mapPath, FileAccess.ModeFlags.Read);
+                string json = file.GetAsText();
                 _context.LoadBeatmapJSON(json);
             }
             else
@@ -121,40 +118,28 @@ namespace RhythmBeatmapEditor
             if (!_context.IsPlaying) return;
 
             float time = _context.PlaybackTime;
-            
-            // 1. Update UI (Stateless)
             TimelineUI.Tick(time);
 
-            // 2. Audio Triggers (Stateful - one shot)
-            // Note: If we rewind, _noteIndex needs to reset.
             var notes = _context.CurrentBeatmap.Notes;
             
-            // Handle Rewind detection simply
+            // Handle Rewind
             if (_noteIndex > 0 && notes[_noteIndex - 1].Time > time)
             {
-                // We jumped back. Reset index.
                 while(_noteIndex > 0 && notes[_noteIndex-1].Time > time) _noteIndex--;
             }
 
             while (_noteIndex < notes.Count)
             {
                 var note = notes[_noteIndex];
-                // Check if we just passed it
                 if (note.Time <= time)
                 {
-                    // Only play if we are within a reasonable window
-                    if (time - note.Time < 0.1f) 
-                    {
-                         _synth.Play(note);
-                    }
+                    if (time - note.Time < 0.1f) _synth.Play(note);
                     _noteIndex++;
                 }
                 else break;
             }
         }
 
-
-        
         public override void _UnhandledInput(InputEvent @event)
         {
             if (_context == null) return;

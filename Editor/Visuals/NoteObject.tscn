@@ -11,30 +11,45 @@ border_width_right = 2
 border_width_bottom = 2
 border_color = Color(1, 1, 1, 1)
 
-[node name="NoteObject" type="Control" unique_id=301879659 node_paths=PackedStringArray("_visualRect", "_lblDelta")]
+[node name="NoteObject" type="Control" unique_id=301879659 node_paths=PackedStringArray("Head", "Body", "_lblDelta")]
 layout_mode = 3
 anchors_preset = 0
 mouse_filter = 1
 script = ExtResource("1_w2uts")
-_visualRect = NodePath("VisualRect")
+Head = NodePath("Head")
+Body = NodePath("Body")
 _lblDelta = NodePath("LabelDelta")
 
-[node name="VisualRect" type="TextureRect" parent="." unique_id=34077515]
+[node name="Body" type="TextureRect" parent="." unique_id=34077515]
 unique_name_in_owner = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_right = 10.0
-offset_bottom = 5.0
+offset_left = 10.0
+offset_right = -10.0
+offset_bottom = -20.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 texture = ExtResource("2_qh8dx")
 expand_mode = 1
 
-[node name="Border" type="Panel" parent="VisualRect" unique_id=568044613]
+[node name="Head" type="Panel" parent="." unique_id=568044613]
 unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_border")
+
+[node name="Fill" type="ColorRect" parent="Head"]
+show_behind_parent = true
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -42,7 +57,6 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_border")
 
 [node name="LabelDelta" type="Label" parent="." unique_id=545193959]
 unique_name_in_owner = true

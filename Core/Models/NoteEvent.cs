@@ -49,16 +49,35 @@ public class NoteEvent
     [NonSerialized]
     public bool Selected = false;
 
+    /// <summary>
+    /// Note Type Enum.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public enum NoteType
+    {
+        [JsonPropertyName("tap")]
+        Tap,
+        [JsonPropertyName("hold")]
+        Hold
+    }
+
+    /// <summary>
+    /// Note Type: Tap or Hold.
+    /// </summary>
+    [JsonPropertyName("type")]
+    public NoteType Type { get; set; } = NoteType.Tap;
+
     // Default Constructor
     public NoteEvent() { }
 
-    public NoteEvent(float time, float duration, int lane, float pitch, string source)
+    public NoteEvent(float time, float duration, int lane, float pitch, string source, NoteType type = NoteType.Tap)
     {
         Time = time;
         Duration = duration;
         Lane = lane;
         Pitch = pitch;
         Source = source;
+        Type = type;
     }
 
     /// <summary>

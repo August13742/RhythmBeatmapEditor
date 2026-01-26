@@ -8,7 +8,7 @@ namespace RhythmBeatmapEditor.Core.Audio;
 public partial class SynthManager : Node
 {
     [Export] public bool ForceVocal { get; set; } = false;
-
+    [Export] public VocalSynthesiser.VocalCharacter VocalProfile { get; set; } = VocalSynthesiser.VocalCharacter.Crystal;
     private Dictionary<string, SFXResource> _synthBank = new();
 
     public void Bake(BeatmapData data)
@@ -49,7 +49,7 @@ public partial class SynthManager : Node
                     // ---------------------------------------------
 
                     var vowel = (VocalSynthesiser.VowelType)vIdx;
-                    res = VocalSynthesiser.GenerateVocal(midi, vowel, bucket, VocalSynthesiser.VocalCharacter.Power);
+                    res = VocalSynthesiser.GenerateVocal(midi, vowel, bucket, VocalProfile);
                 }
                 else if (source.Contains("drum"))
                 {

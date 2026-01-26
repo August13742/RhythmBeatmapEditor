@@ -1,7 +1,5 @@
 using Godot;
 using System;
-using System.IO;
-using System.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
 using RhythmBeatmapEditor.Core;
@@ -18,16 +16,9 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
         private Button _btnLoad;
         
         private string _currentSongName;
+        private string _currentSongPath; // Store the full path (res://Music/file.ogg)
         private string _selectedMapPath;
         
-        // Helper class for lightweight JSON parsing
-        private class BeatmapMetadata
-        {
-            public float bpm { get; set; }
-            public string difficulty { get; set; }
-        }
-        
-
         public override void _Ready()
         {
             _lblSongName = GetNode<Label>("LabelSongName");
@@ -38,13 +29,14 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             _btnLoad.Pressed += OnLoadPressed;
             _btnLoad.Disabled = true;
             
-            // Hide by default
             Visible = false;
         }
         
-        public void Inspect(string songName)
+        // Updated Signature: Accepts the full path resolved by SongList
+        public void Inspect(string songName, string resourcePath)
         {
             _currentSongName = songName;
+            _currentSongPath = resourcePath; 
             _selectedMapPath = null;
             _btnLoad.Disabled = true;
             Visible = true;
@@ -55,20 +47,24 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             // Clear Buttons
             foreach(var child in _difficultyContainer.GetChildren()) child.QueueFree();
             
-            string beatmapFolder = ProjectSettings.GlobalizePath($"res://Beatmap/{songName}");
+            // Use Godot's DirAccess instead of System.IO
+            // This works for both Editor and Exported builds
+            string beatmapFolder = $"res://Beatmap/{songName}";
+            var foundMaps = new Dictionary<string, string>();
             
-            // Define Standard Order
-            string[] standardDiffs = { "EASY", "NORMAL", "HARD", "ALT_HARD" };
-            
-            // Find Maps
-            var foundMaps = new Dictionary<string, string>(); // DiffName -> Path
-            if (Directory.Exists(beatmapFolder))
+            using var dir = DirAccess.Open(beatmapFolder);
+            if (dir != null)
             {
-                var files = Directory.GetFiles(beatmapFolder, "*.json");
-                foreach(var f in files)
+                dir.ListDirBegin();
+                string fileName = dir.GetNext();
+                while (fileName != "")
                 {
-                    string dName = Path.GetFileNameWithoutExtension(f);
-                    foundMaps[dName.ToUpper()] = f;
+                    if (!dir.CurrentIsDir() && fileName.EndsWith(".json"))
+                    {
+                        string dName = System.IO.Path.GetFileNameWithoutExtension(fileName);
+                        foundMaps[dName.ToUpper()] = $"{beatmapFolder}/{fileName}";
+                    }
+                    fileName = dir.GetNext();
                 }
             }
             else
@@ -76,19 +72,19 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
                  _lblStats.Text = "[color=red]Map directory not found![/color]";
             }
             
-            // 1. Create Standard Diffs (Pre-baked)
+            // Standard Order
+            string[] standardDiffs = { "EASY", "NORMAL", "HARD", "ALT_HARD" };
+            
+            // 1. Create Standard Diffs
             foreach(var diff in standardDiffs)
             {
                 bool exists = foundMaps.ContainsKey(diff);
                 string path = exists ? foundMaps[diff] : null;
-                
                 CreateDiffButton(diff, path, exists);
-                
-                // Remove from found so we don't duplicate
                 if(exists) foundMaps.Remove(diff);
             }
             
-            // 2. Create Remaining Diffs (Extras)
+            // 2. Create Extras
             foreach(var entry in foundMaps)
             {
                 CreateDiffButton(entry.Key, entry.Value, true);
@@ -97,11 +93,13 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
         
         private void CreateDiffButton(string diffName, string path, bool enabled)
         {
-            var btn = new Button();
-            btn.Text = diffName;
-            btn.ToggleMode = true;
-            btn.CustomMinimumSize = new Vector2(80, 40);
-            
+            var btn = new Button
+            {
+                Text = diffName,
+                ToggleMode = true,
+                CustomMinimumSize = new Vector2(80, 40)
+            };
+
             if (enabled)
             {
                 btn.Pressed += () => OnDifficultySelected(btn, path);
@@ -109,7 +107,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             else
             {
                 btn.Disabled = true;
-                btn.Modulate = new Color(1, 1, 1, 0.3f); // Dim it
+                btn.Modulate = new Color(1, 1, 1, 0.3f);
                 btn.TooltipText = "Map file missing";
             }
             
@@ -118,19 +116,14 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
         
         private void OnDifficultySelected(Button selectedBtn, string mapPath)
         {
-            // Update UI Selection (Single selection logic)
             foreach(Node child in _difficultyContainer.GetChildren())
             {
-                if (child is Button b)
-                {
-                    b.SetPressedNoSignal(b == selectedBtn);
-                }
+                if (child is Button b) b.SetPressedNoSignal(b == selectedBtn);
             }
             
             _selectedMapPath = mapPath;
             _btnLoad.Disabled = false;
             
-            // Generate Stats
             DisplayStats(mapPath);
         }
         
@@ -138,19 +131,22 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
         {
             try 
             {
-                string jsonContent = File.ReadAllText(mapPath);
+                // Use Godot FileAccess to read res:// paths
+                string jsonContent;
+                using (var file = FileAccess.Open(mapPath, FileAccess.ModeFlags.Read))
+                {
+                    if (file == null) throw new Exception($"Failed to open {mapPath}");
+                    jsonContent = file.GetAsText();
+                }
+
                 using (JsonDocument doc = JsonDocument.Parse(jsonContent))
                 {
                     var root = doc.RootElement;
                     
-                    // Metadata
                     double bpm = 0;
                     if (root.TryGetProperty("metadata", out var meta))
-                    {
-                         if(meta.TryGetProperty("bpm", out var b)) bpm = b.GetDouble();
-                    }
+                        if(meta.TryGetProperty("bpm", out var b)) bpm = b.GetDouble();
                     
-                    // Notes
                     int noteCount = 0;
                     double duration = 0;
                     int holdCount = 0;
@@ -166,29 +162,24 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
                                 double time = t.GetDouble();
                                 double dur = 0;
                                 if (note.TryGetProperty("dur", out var d)) dur = d.GetDouble();
-                                
                                 if (time + dur > duration) duration = time + dur;
                             }
                             
                             if (note.TryGetProperty("type", out var type))
                             {
-                                string typeStr = type.GetString();
-                                if (typeStr == "hold") holdCount++;
+                                if (type.GetString() == "hold") holdCount++;
                                 else tapCount++;
                             }
                         }
                     }
                     
                     var ts = TimeSpan.FromSeconds(duration);
-                    string durationStr = $"{ts.Minutes:D2}:{ts.Seconds:D2}";
                     
-                    string text = $"[b]BPM:[/b] {bpm}\n";
-                    text += $"[b]Duration:[/b] {durationStr}\n";
-                    text += $"[b]Total Notes:[/b] {noteCount}\n";
-                    text += $" - Taps: {tapCount}\n";
-                    text += $" - Holds: {holdCount}\n";
-                    
-                    _lblStats.Text = text;
+                    _lblStats.Text = $"[b]BPM:[/b] {bpm}\n" +
+                                     $"[b]Duration:[/b] {ts:mm\\:ss}\n" +
+                                     $"[b]Total Notes:[/b] {noteCount}\n" +
+                                     $" - Taps: {tapCount}\n" +
+                                     $" - Holds: {holdCount}\n";
                 }
             }
             catch(Exception e)
@@ -202,27 +193,21 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
         {
             if (string.IsNullOrEmpty(_selectedMapPath)) return;
             
-            string songPath = ProjectSettings.GlobalizePath($"res://Music/{_currentSongName}.mp3");
-
-            // Stop Jukebox/Preview Music so it doesn't overlap with the Editor
             if (AudioManager.Instance != null)
             {
                 AudioManager.Instance.StopMusic(0.5f);
             }
             
-            // Set Session Data
-            SessionData.CurrentSongPath = songPath;
+            // Use the path stored from Inspect(), ignoring extension guessing
+            SessionData.CurrentSongPath = _currentSongPath;
             SessionData.CurrentMapPath = _selectedMapPath;
             
-            // Change Scene
-            // Change Scene with Crossfade
             if (VisualiserScene != null)
             {
                 Utility.CrossfadeManager.Instance.LoadScene(VisualiserScene);
             }
             else
             {
-                 // Fallback based on typical path
                  Utility.CrossfadeManager.Instance.LoadScene("uid://57yv48lyutsu");
             }
         }
