@@ -28,6 +28,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 color = Color(0.08, 0.08, 0.1, 1)
 
 [node name="AspectRatioContainer" type="AspectRatioContainer" parent="." unique_id=68210570]
@@ -37,10 +38,12 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 ratio = 0.6
 
 [node name="Highway" type="Control" parent="AspectRatioContainer" unique_id=1097440592]
 layout_mode = 2
+mouse_filter = 2
 
 [node name="LaneContainer" type="HBoxContainer" parent="AspectRatioContainer/Highway" unique_id=2098093159]
 layout_mode = 1
@@ -49,6 +52,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 theme_override_constants/separation = 2
 
 [node name="GhostLayer" type="Control" parent="AspectRatioContainer/Highway" unique_id=108861888]
@@ -75,4 +79,5 @@ offset_top = -100.0
 offset_bottom = -98.0
 grow_horizontal = 2
 grow_vertical = 0
+mouse_filter = 2
 color = Color(0, 1, 0, 1)

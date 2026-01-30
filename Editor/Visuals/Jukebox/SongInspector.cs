@@ -52,10 +52,16 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
         private VBoxContainer _selectionContainer; // Changed to VBox for vertical layout
         private RichTextLabel _lblStats;
         private Button _btnLoad;
+        private CheckBox _chkCompareMode;
         
         private string _currentSongName;
         private string _currentSongPath;
         private BeatmapFileInfo? _selectedMap;
+        
+        // Multi-select state
+        private bool _isCompareMode = false;
+        private List<BeatmapFileInfo> _selectedMaps = new();
+        private const int MaxCompareCount = 4;
         
         // Lane group state
         private Dictionary<int, List<BeatmapFileInfo>> _mapsByLanes = new();
@@ -72,6 +78,14 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             _btnLoad.Pressed += OnLoadPressed;
             _btnLoad.Disabled = true;
             
+            // Create compare mode checkbox dynamically
+            _chkCompareMode = new CheckBox
+            {
+                Text = "Compare Mode (max 4)",
+                TooltipText = "Enable to select multiple difficulties for comparison"
+            };
+            _chkCompareMode.Toggled += OnCompareModeToggled;
+            
             Visible = false;
         }
         
@@ -80,12 +94,14 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             _currentSongName = songName;
             _currentSongPath = resourcePath; 
             _selectedMap = null;
+            _selectedMaps.Clear();
             _btnLoad.Disabled = true;
             _expandedLaneGroup = -1;
             Visible = true;
             
             _lblSongName.Text = songName;
             _lblStats.Text = "[i]Select a difficulty...[/i]";
+            UpdateLoadButton();
             
             foreach(var child in _selectionContainer.GetChildren()) child.QueueFree();
             
@@ -175,6 +191,9 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             _difficultyRow = new HBoxContainer();
             _difficultyRow.AddThemeConstantOverride("separation", 4);
             _selectionContainer.AddChild(_difficultyRow);
+            
+            // Add compare mode checkbox
+            _selectionContainer.AddChild(_chkCompareMode);
         }
         
         private void OnLaneGroupSelected(int lanes)
@@ -226,6 +245,9 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             
             _selectionContainer.AddChild(row);
             _difficultyRow = row;
+            
+            // Add compare mode checkbox
+            _selectionContainer.AddChild(_chkCompareMode);
         }
         
         private void CreateDiffButton(BeatmapFileInfo info, HBoxContainer container)
@@ -243,15 +265,128 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
         
         private void OnDifficultySelected(Button selectedBtn, BeatmapFileInfo info)
         {
+            if (_isCompareMode)
+            {
+                // Multi-select mode: toggle selection
+                string key = $"{info.Difficulty}_{info.Lanes}k";
+                int existingIndex = _selectedMaps.FindIndex(m => $"{m.Difficulty}_{m.Lanes}k" == key);
+                
+                if (existingIndex >= 0)
+                {
+                    // Deselect
+                    _selectedMaps.RemoveAt(existingIndex);
+                    selectedBtn.SetPressedNoSignal(false);
+                }
+                else if (_selectedMaps.Count < MaxCompareCount)
+                {
+                    // Select
+                    _selectedMaps.Add(info);
+                    selectedBtn.SetPressedNoSignal(true);
+                }
+                else
+                {
+                    // Max reached - don't allow more
+                    selectedBtn.SetPressedNoSignal(false);
+                    GD.Print($"[SongInspector] Maximum {MaxCompareCount} maps for compare mode.");
+                }
+                
+                UpdateLoadButton();
+                DisplayMultiStats();
+            }
+            else
+            {
+                // Single-select mode: exclusive selection
+                foreach(Node child in _difficultyRow.GetChildren())
+                {
+                    if (child is Button b) b.SetPressedNoSignal(b == selectedBtn);
+                }
+                
+                _selectedMap = info;
+                _selectedMaps.Clear();
+                _selectedMaps.Add(info);
+                
+                UpdateLoadButton();
+                DisplayStats(info.FilePath, info.Lanes);
+            }
+        }
+        
+        private void OnCompareModeToggled(bool enabled)
+        {
+            _isCompareMode = enabled;
+            _selectedMap = null;
+            _selectedMaps.Clear();
+            
+            // Reset all button states
             foreach(Node child in _difficultyRow.GetChildren())
             {
-                if (child is Button b) b.SetPressedNoSignal(b == selectedBtn);
+                if (child is Button b) b.SetPressedNoSignal(false);
             }
             
-            _selectedMap = info;
-            _btnLoad.Disabled = false;
+            UpdateLoadButton();
+            _lblStats.Text = enabled 
+                ? "[i]Select up to 4 difficulties to compare...[/i]" 
+                : "[i]Select a difficulty...[/i]";
+        }
+        
+        private void UpdateLoadButton()
+        {
+            int count = _selectedMaps.Count;
+            _btnLoad.Disabled = count == 0;
             
-            DisplayStats(info.FilePath, info.Lanes);
+            if (_isCompareMode && count > 0)
+            {
+                _btnLoad.Text = $"LOAD ({count})";
+            }
+            else
+            {
+                _btnLoad.Text = "LOAD / PLAY";
+            }
+        }
+        
+        private void DisplayMultiStats()
+        {
+            if (_selectedMaps.Count == 0)
+            {
+                _lblStats.Text = "[i]Select up to 4 difficulties to compare...[/i]";
+                return;
+            }
+            
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"[b]Selected Maps:[/b] {_selectedMaps.Count}/{MaxCompareCount}");
+            sb.AppendLine();
+            
+            int totalNotes = 0;
+            foreach (var map in _selectedMaps)
+            {
+                string key = $"{map.Difficulty}_{map.Lanes}k";
+                int noteCount = GetNoteCountFast(map.FilePath);
+                totalNotes += noteCount;
+                sb.AppendLine($"• {key}: {noteCount} notes");
+            }
+            
+            sb.AppendLine();
+            sb.AppendLine($"[b]Total Notes:[/b] {totalNotes}");
+            
+            _lblStats.Text = sb.ToString();
+        }
+        
+        private int GetNoteCountFast(string mapPath)
+        {
+            try
+            {
+                using var file = FileAccess.Open(mapPath, FileAccess.ModeFlags.Read);
+                if (file == null) return 0;
+                
+                string json = file.GetAsText();
+                using var doc = JsonDocument.Parse(json);
+                
+                if (doc.RootElement.TryGetProperty("notes", out var notes))
+                {
+                    return notes.GetArrayLength();
+                }
+            }
+            catch { }
+            return 0;
         }
         
         private void DisplayStats(string mapPath, int lanes)
@@ -326,7 +461,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
         
         private void OnLoadPressed()
         {
-            if (_selectedMap == null) return;
+            if (_selectedMaps.Count == 0) return;
             
             if (AudioManager.Instance != null)
             {
@@ -334,7 +469,24 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             }
             
             SessionData.CurrentSongPath = _currentSongPath;
-            SessionData.CurrentMapPath = _selectedMap.Value.FilePath;
+            
+            if (_isCompareMode && _selectedMaps.Count > 1)
+            {
+                // Multi-map mode: store list of paths
+                var paths = new List<string>();
+                foreach (var map in _selectedMaps)
+                {
+                    paths.Add(map.FilePath);
+                }
+                SessionData.CurrentMapPaths = paths;
+                SessionData.CurrentMapPath = _selectedMaps[0].FilePath; // Primary map
+            }
+            else
+            {
+                // Single map mode
+                SessionData.CurrentMapPath = _selectedMaps[0].FilePath;
+                SessionData.CurrentMapPaths = null;
+            }
             
             if (VisualiserScene != null)
             {

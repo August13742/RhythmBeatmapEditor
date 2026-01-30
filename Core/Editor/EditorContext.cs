@@ -1,5 +1,6 @@
 using Godot;
 using System.Collections.Generic;
+using System.Linq;
 using RhythmBeatmapEditor.Core.Models;
 using RhythmBeatmapEditor.AudioSystem;
 using System.Text.Json;
@@ -24,7 +25,17 @@ public partial class EditorContext : Node
     #endregion
 
     #region State
-    public BeatmapData CurrentBeatmap { get; private set; } = new();
+    // Multi-map storage (keyed by "{DIFF}_{lanes}k", e.g. "HARD_4k")
+    public Dictionary<string, BeatmapData> LoadedMaps { get; private set; } = new();
+    public string ActiveMapKey { get; private set; } = "";
+    
+    // CurrentBeatmap is alias to active map (backwards compatible)
+    public BeatmapData CurrentBeatmap => LoadedMaps.TryGetValue(ActiveMapKey, out var map) ? map : _fallbackMap;
+    private BeatmapData _fallbackMap = new();
+    
+    // Multi-map mode
+    public bool IsMultiMapMode => LoadedMaps.Count > 1;
+    public int LoadedMapCount => LoadedMaps.Count;
     
     // Playback state
     public float PlaybackTime { get; private set; } = 0f;
@@ -213,7 +224,7 @@ public partial class EditorContext : Node
     
     #region API - General
     
-    public void LoadBeatmapJSON(string jsonContent)
+    public void LoadBeatmapJSON(string jsonContent, string mapKey = null)
     {
         CancelEdit(); // Clear any pending edits
         try 
@@ -223,11 +234,28 @@ public partial class EditorContext : Node
             
             if (data != null)
             {
-                CurrentBeatmap = data;
-                CurrentBeatmap.Sort(); // Ensure sorted
+                // Generate key from metadata if not provided
+                if (string.IsNullOrEmpty(mapKey))
+                {
+                    string diff = !string.IsNullOrEmpty(data.Metadata?.Difficulty) ? data.Metadata.Difficulty : "UNKNOWN";
+                    int lanes = data.LaneCount;
+                    mapKey = $"{diff}_{lanes}k";
+                }
+                
+                data.Sort(); // Ensure sorted
+                
+                // If this is the first map or replacing single map, clear existing
+                if (LoadedMaps.Count == 0 || !IsMultiMapMode)
+                {
+                    LoadedMaps.Clear();
+                }
+                
+                LoadedMaps[mapKey] = data;
+                ActiveMapKey = mapKey;
+                
                 ClearSelection();
                 EmitSignal(SignalName.BeatmapLoaded);
-                GD.Print($"[EditorContext] Loaded beatmap with {CurrentBeatmap.Notes.Count} notes.");
+                GD.Print($"[EditorContext] Loaded beatmap '{mapKey}' with {data.Notes.Count} notes. Total maps: {LoadedMaps.Count}");
             }
         }
         catch (System.Exception e)
@@ -235,6 +263,64 @@ public partial class EditorContext : Node
             GD.PrintErr($"[EditorContext] Failed to load beatmap: {e.Message}");
         }
     }
+    
+    /// <summary>
+    /// Load multiple beatmaps for comparison mode
+    /// </summary>
+    public void LoadMultipleBeatmaps(Dictionary<string, string> mapJsons)
+    {
+        CancelEdit();
+        LoadedMaps.Clear();
+        
+        var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true };
+        
+        foreach (var kvp in mapJsons)
+        {
+            try
+            {
+                BeatmapData data = JsonSerializer.Deserialize<BeatmapData>(kvp.Value, options);
+                if (data != null)
+                {
+                    data.Sort();
+                    LoadedMaps[kvp.Key] = data;
+                    GD.Print($"[EditorContext] Loaded map '{kvp.Key}' with {data.Notes.Count} notes.");
+                }
+            }
+            catch (System.Exception e)
+            {
+                GD.PrintErr($"[EditorContext] Failed to load map '{kvp.Key}': {e.Message}");
+            }
+        }
+        
+        // Set first map as active
+        if (LoadedMaps.Count > 0)
+        {
+            ActiveMapKey = LoadedMaps.Keys.First();
+        }
+        
+        ClearSelection();
+        EmitSignal(SignalName.BeatmapLoaded);
+        GD.Print($"[EditorContext] Multi-map mode: {LoadedMaps.Count} maps loaded.");
+    }
+    
+    /// <summary>
+    /// Switch active map (for editing context)
+    /// </summary>
+    public void SetActiveMap(string mapKey)
+    {
+        if (LoadedMaps.ContainsKey(mapKey) && ActiveMapKey != mapKey)
+        {
+            ActiveMapKey = mapKey;
+            ClearSelection();
+            OnSelectionChanged?.Invoke();
+            GD.Print($"[EditorContext] Active map switched to '{mapKey}'");
+        }
+    }
+    
+    /// <summary>
+    /// Get beatmap by key (for multi-map rendering)
+    /// </summary>
+    public BeatmapData GetMap(string key) => LoadedMaps.TryGetValue(key, out var map) ? map : null;
 
     public void TogglePlay()
     {

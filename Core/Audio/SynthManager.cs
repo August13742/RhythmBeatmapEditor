@@ -13,59 +13,74 @@ public partial class SynthManager : Node
 
     public void Bake(BeatmapData data)
     {
+        BakeMultiple(new[] { data });
+    }
+    
+    /// <summary>
+    /// Bake SFX for multiple beatmaps, deduplicating shared notes across difficulties
+    /// </summary>
+    public void BakeMultiple(IEnumerable<BeatmapData> maps)
+    {
         _synthBank.Clear();
         var uniqueKeys = new HashSet<string>();
+        int totalNotes = 0;
         
         GD.Print("[SynthManager] Baking in Vocal + 8-bit Instrumental Mode...");
 
-        foreach(var note in data.Notes)
+        foreach (var data in maps)
         {
-            float bucket = VocalSynthesiser.GetBucket(note.Duration);
-            string source = note.Source.ToLower();
+            if (data == null) continue;
             
-            // Force vocal for non-drum instruments if ForceVocal is enabled
-            if (ForceVocal && !source.Contains("drum"))
+            foreach(var note in data.Notes)
             {
-                source = "vocal";
-            }
-            
-            // Bake all pitches from AudioPool (or single Pitch fallback)
-            foreach (int midi in note.GetAudioPitches())
-            {
-                string key = $"{source}_{midi}_{bucket:F2}";
-                if (uniqueKeys.Add(key))
+                totalNotes++;
+                float bucket = VocalSynthesiser.GetBucket(note.Duration);
+                string source = note.Source.ToLower();
+                
+                // Force vocal for non-drum instruments if ForceVocal is enabled
+                if (ForceVocal && !source.Contains("drum"))
                 {
-                    SFXResource res = null;
-                    
-                    if (source.Contains("vocal"))
+                    source = "vocal";
+                }
+                
+                // Bake all pitches from AudioPool (or single Pitch fallback)
+                foreach (int midi in note.GetAudioPitches())
+                {
+                    string key = $"{source}_{midi}_{bucket:F2}";
+                    if (uniqueKeys.Add(key))
                     {
-                        int vIdx = (midi * 13 + 7) % 5;
-                        if (midi > 80) 
+                        SFXResource res = null;
+                        
+                        if (source.Contains("vocal"))
                         {
-                            if (vIdx == 1) vIdx = 0;
-                            if (vIdx == 2) vIdx = 4;
+                            int vIdx = (midi * 13 + 7) % 5;
+                            if (midi > 80) 
+                            {
+                                if (vIdx == 1) vIdx = 0;
+                                if (vIdx == 2) vIdx = 4;
+                            }
+                            var vowel = (VocalSynthesiser.VowelType)vIdx;
+                            res = VocalSynthesiser.GenerateVocal(midi, vowel, bucket, VocalProfile);
                         }
-                        var vowel = (VocalSynthesiser.VowelType)vIdx;
-                        res = VocalSynthesiser.GenerateVocal(midi, vowel, bucket, VocalProfile);
-                    }
-                    else if (source.Contains("drum"))
-                    {
-                        var type = (midi % 2 == 0) ? VocalSynthesiser.InstrumentType.Kick : VocalSynthesiser.InstrumentType.Snare;
-                        res = VocalSynthesiser.GenerateDrums(type);
-                    }
-                    else
-                    {
-                        res = VocalSynthesiser.GenerateInstrument(midi, bucket);
-                    }
+                        else if (source.Contains("drum"))
+                        {
+                            var type = (midi % 2 == 0) ? VocalSynthesiser.InstrumentType.Kick : VocalSynthesiser.InstrumentType.Snare;
+                            res = VocalSynthesiser.GenerateDrums(type);
+                        }
+                        else
+                        {
+                            res = VocalSynthesiser.GenerateInstrument(midi, bucket);
+                        }
 
-                    if (res != null)
-                    {
-                        _synthBank[key] = res;
+                        if (res != null)
+                        {
+                            _synthBank[key] = res;
+                        }
                     }
                 }
             }
         }
-        GD.Print($"[SynthManager] Baked {_synthBank.Count} unique synth samples.");
+        GD.Print($"[SynthManager] Baked {_synthBank.Count} unique synth samples from {totalNotes} notes.");
     }
     
     public void Play(NoteEvent note)

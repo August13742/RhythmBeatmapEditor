@@ -11,7 +11,19 @@ border_width_right = 2
 border_width_bottom = 2
 border_color = Color(1, 1, 1, 1)
 
-[node name="NoteObject" type="Control" unique_id=301879659 node_paths=PackedStringArray("Head", "Body", "_lblDelta")]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_select"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 1, 1, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[node name="NoteObject" type="Control" unique_id=301879659 node_paths=PackedStringArray("Head", "Body", "_lblDelta", "_selectionHighlight")]
 layout_mode = 3
 anchors_preset = 0
 mouse_filter = 1
@@ -19,6 +31,7 @@ script = ExtResource("1_w2uts")
 Head = NodePath("Head")
 Body = NodePath("Body")
 _lblDelta = NodePath("LabelDelta")
+_selectionHighlight = NodePath("SelectionHighlight")
 
 [node name="Body" type="TextureRect" parent="." unique_id=34077515]
 unique_name_in_owner = true
@@ -75,3 +88,18 @@ grow_vertical = 0
 text = "+0.00s"
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="SelectionHighlight" type="Panel" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -24.0
+offset_bottom = 4.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_select")

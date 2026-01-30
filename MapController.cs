@@ -1,8 +1,11 @@
 using Godot;
 using System.Collections.Generic;
+using System.Linq;
 using RhythmBeatmapEditor.Core.Editor;
 using AudioSystem;
 using RhythmBeatmapEditor.Editor.Visuals;
+using GodotFileAccess = Godot.FileAccess;
+using Path = System.IO.Path;
 
 namespace RhythmBeatmapEditor
 {
@@ -18,6 +21,11 @@ namespace RhythmBeatmapEditor
         private int _noteIndex = 0;
         private Core.Audio.SynthManager _synth;
         private NodePath jukeboxPath = "uid://jukebox";
+        
+        /// <summary>
+        /// Per-map playback indices for multi-map SFX (keys 1-4)
+        /// </summary>
+        private Dictionary<string, int> _noteIndices = new();
 
         public override void _Ready()
         {
@@ -54,31 +62,22 @@ namespace RhythmBeatmapEditor
 
         private void LoadContent()
         {
-            string rawSongPath, rawMapPath;
-
-            // 1. Retrieve Data
-            if (!string.IsNullOrEmpty(Core.SessionData.CurrentSongPath))
-            {
-                rawSongPath = Core.SessionData.CurrentSongPath;
-                rawMapPath = Core.SessionData.CurrentMapPath;
-                GD.Print($"[MapController] Loading from Session: {rawSongPath}");
-            }
-            else
+            string rawSongPath = Core.SessionData.CurrentSongPath;
+            
+            if (string.IsNullOrEmpty(rawSongPath))
             {
                 GD.PrintErr("[MapController] No Session Data! Returning to Jukebox.");
                 Utility.CrossfadeManager.Instance.LoadScene(jukeboxPath);
                 return;
             }
             
-            // 2. Sanitize Paths
-            // Converts "E:/GodotProjects/..." back to "res://Music/..."
-            // This ensures ResourceLoader works in both Editor and Exported builds.
+            GD.Print($"[MapController] Loading from Session: {rawSongPath}");
+            
+            // Sanitize song path
             string songPath = ProjectSettings.LocalizePath(rawSongPath);
-            string mapPath = ProjectSettings.LocalizePath(rawMapPath);
 
-            // 3. Load Audio
-            // Use Godot.FileAccess
-            if (FileAccess.FileExists(songPath)) 
+            // Load Audio
+            if (GodotFileAccess.FileExists(songPath)) 
             {
                  _context.AudioController.LoadSong(songPath);
             }
@@ -89,11 +88,25 @@ namespace RhythmBeatmapEditor
                  return;
             }
             
-            // 4. Load Map
-            if (FileAccess.FileExists(mapPath))
+            // Check for multi-map or single-map mode
+            if (Core.SessionData.IsMultiMapMode && Core.SessionData.CurrentMapPaths?.Count > 0)
             {
-                // Use FileAccess to read text to support .pck files
-                using var file = FileAccess.Open(mapPath, FileAccess.ModeFlags.Read);
+                LoadMultipleMaps();
+            }
+            else
+            {
+                LoadSingleMap();
+            }
+        }
+        
+        private void LoadSingleMap()
+        {
+            string rawMapPath = Core.SessionData.CurrentMapPath;
+            string mapPath = ProjectSettings.LocalizePath(rawMapPath);
+            
+            if (GodotFileAccess.FileExists(mapPath))
+            {
+                using var file = GodotFileAccess.Open(mapPath, GodotFileAccess.ModeFlags.Read);
                 string json = file.GetAsText();
                 _context.LoadBeatmapJSON(json);
             }
@@ -104,9 +117,60 @@ namespace RhythmBeatmapEditor
             }
         }
         
+        private void LoadMultipleMaps()
+        {
+            var paths = Core.SessionData.CurrentMapPaths;
+            var mapJsons = new Dictionary<string, string>();
+            
+            foreach (var rawPath in paths)
+            {
+                string localPath = ProjectSettings.LocalizePath(rawPath);
+                if (!GodotFileAccess.FileExists(localPath))
+                {
+                    GD.PrintErr($"[MapController] Map not found: {localPath}");
+                    continue;
+                }
+                
+                using var file = GodotFileAccess.Open(localPath, GodotFileAccess.ModeFlags.Read);
+                string json = file.GetAsText();
+                
+                // Extract map key from filename (e.g., "HARD_4k.json" -> "HARD_4k")
+                string mapKey = Path.GetFileNameWithoutExtension(rawPath);
+                mapJsons[mapKey] = json;
+            }
+            
+            if (mapJsons.Count == 0)
+            {
+                GD.PrintErr("[MapController] No valid maps found!");
+                Utility.CrossfadeManager.Instance.LoadScene(jukeboxPath);
+                return;
+            }
+            
+            // Load all maps into EditorContext
+            _context.LoadMultipleBeatmaps(mapJsons);
+            
+            // Initialize note indices for each map
+            _noteIndices.Clear();
+            foreach (var key in _context.LoadedMaps.Keys)
+            {
+                _noteIndices[key] = 0;
+            }
+            
+            GD.Print($"[MapController] Loaded {mapJsons.Count} maps for comparison");
+        }
+        
         private void OnBeatmapLoaded()
         {
-             _synth.Bake(_context.CurrentBeatmap);
+             // In multi-map mode, bake SFX for ALL maps (deduplicates shared notes)
+             if (_context.IsMultiMapMode)
+             {
+                 _synth.BakeMultiple(_context.LoadedMaps.Values);
+             }
+             else
+             {
+                 _synth.Bake(_context.CurrentBeatmap);
+             }
+             
              TimelineUI.Initialise(_context); 
              Inspector?.Initialise(_context); 
              StateManager?.Initialise(_context); 
@@ -120,24 +184,44 @@ namespace RhythmBeatmapEditor
             float time = _context.PlaybackTime;
             TimelineUI.Tick(time);
 
-            var notes = _context.CurrentBeatmap.Notes;
+            // Play SFX for active map only
+            PlaySFXForMap(_context.ActiveMapKey, time);
+        }
+        
+        /// <summary>
+        /// Play SFX for a specific map by key
+        /// </summary>
+        private void PlaySFXForMap(string mapKey, float time)
+        {
+            var map = _context.GetMap(mapKey);
+            if (map == null) return;
+            
+            if (!_noteIndices.TryGetValue(mapKey, out int noteIndex))
+            {
+                noteIndex = 0;
+                _noteIndices[mapKey] = noteIndex;
+            }
+            
+            var notes = map.Notes;
             
             // Handle Rewind
-            if (_noteIndex > 0 && notes[_noteIndex - 1].Time > time)
+            if (noteIndex > 0 && notes[noteIndex - 1].Time > time)
             {
-                while(_noteIndex > 0 && notes[_noteIndex-1].Time > time) _noteIndex--;
+                while (noteIndex > 0 && notes[noteIndex - 1].Time > time) noteIndex--;
             }
 
-            while (_noteIndex < notes.Count)
+            while (noteIndex < notes.Count)
             {
-                var note = notes[_noteIndex];
+                var note = notes[noteIndex];
                 if (note.Time <= time)
                 {
                     if (time - note.Time < 0.1f) _synth.Play(note);
-                    _noteIndex++;
+                    noteIndex++;
                 }
                 else break;
             }
+            
+            _noteIndices[mapKey] = noteIndex;
         }
 
         public override void _UnhandledInput(InputEvent @event)
@@ -154,8 +238,38 @@ namespace RhythmBeatmapEditor
                 if (k.Keycode == Key.R)
                 {
                     _context.Seek(0);
-                    _noteIndex = 0;
+                    ResetAllNoteIndices();
                 }
+                
+                // Multi-map mode: Keys 1-4 switch active map for SFX playback
+                if (_context.IsMultiMapMode)
+                {
+                    int mapIndex = -1;
+                    if (k.Keycode == Key.Key1) mapIndex = 0;
+                    else if (k.Keycode == Key.Key2) mapIndex = 1;
+                    else if (k.Keycode == Key.Key3) mapIndex = 2;
+                    else if (k.Keycode == Key.Key4) mapIndex = 3;
+                    
+                    if (mapIndex >= 0)
+                    {
+                        var keys = new List<string>(_context.LoadedMaps.Keys);
+                        if (mapIndex < keys.Count)
+                        {
+                            _context.SetActiveMap(keys[mapIndex]);
+                            // No need to re-bake - all maps already baked with deduplication
+                            GD.Print($"[MapController] Switched to map: {keys[mapIndex]}");
+                        }
+                    }
+                }
+            }
+        }
+        
+        private void ResetAllNoteIndices()
+        {
+            _noteIndex = 0;
+            foreach (var key in _noteIndices.Keys.ToArray())
+            {
+                _noteIndices[key] = 0;
             }
         }
     }

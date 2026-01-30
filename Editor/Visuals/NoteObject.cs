@@ -14,6 +14,11 @@ public partial class NoteObject : Control, IPoolable
     [Export] public Control Head { get; private set; }
     [Export] public Control Body { get; private set; }
     [Export] private Label _lblDelta;
+    [Export] private Panel _selectionHighlight;
+    
+    [ExportCategory("Selection Highlight")]
+    [Export] public Color HighlightColor { get; set; } = Colors.White;
+    [Export] public int HighlightBorderWidth { get; set; } = 3;
     
     public bool IsSelected { get; private set; }
     private Color _baseColor;
@@ -30,6 +35,7 @@ public partial class NoteObject : Control, IPoolable
         SetDeltaText(null);
         MouseFilter = MouseFilterEnum.Stop;
         if(Body != null) Body.Visible = false;
+        if(_selectionHighlight != null) _selectionHighlight.Visible = false;
     }
 
     public void OnDespawned()
@@ -99,16 +105,33 @@ public partial class NoteObject : Control, IPoolable
     {
         IsSelected = selected;
         
-        // Use overall Modulate for a clear yellow tint when selected
-        // This affects the entire note including head and body
-        if (IsSelected)
+        // Use dedicated selection highlight panel with exported parameters
+        if (_selectionHighlight != null)
         {
-            Modulate = new Color(1.0f, 1.0f, 0.5f, 1.0f); // Yellow tint
+            _selectionHighlight.Visible = IsSelected;
+            
+            // Update StyleBox if visible (create dynamic StyleBoxFlat)
+            if (IsSelected)
+            {
+                var styleBox = new StyleBoxFlat
+                {
+                    BgColor = new Color(0, 0, 0, 0), // Transparent background
+                    BorderWidthLeft = HighlightBorderWidth,
+                    BorderWidthTop = HighlightBorderWidth,
+                    BorderWidthRight = HighlightBorderWidth,
+                    BorderWidthBottom = HighlightBorderWidth,
+                    BorderColor = HighlightColor,
+                    CornerRadiusTopLeft = 2,
+                    CornerRadiusTopRight = 2,
+                    CornerRadiusBottomLeft = 2,
+                    CornerRadiusBottomRight = 2
+                };
+                _selectionHighlight.AddThemeStyleboxOverride("panel", styleBox);
+            }
         }
-        else
-        {
-            Modulate = Colors.White; // Normal
-        }
+        
+        // Keep Modulate neutral to preserve note colors
+        Modulate = Colors.White;
     }
     
     public void SetDeltaText(string text)
