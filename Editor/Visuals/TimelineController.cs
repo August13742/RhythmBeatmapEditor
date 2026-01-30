@@ -86,10 +86,20 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _input.Initialise(context, Highway, NoteLayer, PixelsPerSecond);
             _context.OnSelectionChanged += HandleExternalSelectionInfo;
 
-            // 1. Setup Lanes
-            int lanes = 4;
-            if (_currentMap.Notes.Count > 0) 
-                lanes = _currentMap.Notes.Max(n => n.Lane) + 1;
+            // 1. Setup Lanes - use metadata.lanes or derive from notes
+            int lanes = _currentMap.LaneCount;
+            
+            // Validate against actual note data (only visual notes)
+            int maxNoteLane = 0;
+            foreach (var note in _currentMap.Notes)
+            {
+                if (note.IsVisual && note.Lane > maxNoteLane)
+                    maxNoteLane = note.Lane;
+            }
+            lanes = Math.Max(lanes, maxNoteLane + 1);
+            
+            // Update context MaxLanes to match
+            context.MaxLanes = lanes;
 
             SetupLanes(lanes);
 
@@ -155,7 +165,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             }
             foreach (var note in _despawnCache) DespawnNote(note);
 
-            // 2. Spawn
+            // 2. Spawn - only visual notes (skip ghosts)
             var notes = _currentMap.Notes;
             int count = notes.Count;
             if (count > 0)
@@ -168,6 +178,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 {
                     var note = notes[i];
                     if (note.Time > end) break;
+                    // Skip ghost notes (audio-only)
+                    if (!note.IsVisual) continue;
                     if (!_activeVisuals.ContainsKey(note)) SpawnNote(note);
                 }
             }

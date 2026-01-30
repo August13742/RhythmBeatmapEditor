@@ -13,6 +13,7 @@ public class NoteEvent
     /// <summary>
     /// Start time in seconds.
     /// </summary>
+    [JsonPropertyName("time")]
     public float Time { get; set; }
 
     /// <summary>
@@ -22,12 +23,13 @@ public class NoteEvent
     public float Duration { get; set; }
 
     /// <summary>
-    /// Lane index (0-3 typically, or more).
+    /// Lane index (0-N, or -1 for ghost notes).
     /// </summary>
+    [JsonPropertyName("lane")]
     public int Lane { get; set; }
 
     /// <summary>
-    /// MIDI Pitch or Frequency.
+    /// MIDI Pitch (visual/primary pitch).
     /// </summary>
     [JsonPropertyName("midi")]
     public float Pitch { get; set; }
@@ -35,6 +37,7 @@ public class NoteEvent
     /// <summary>
     /// Source stem identifier (e.g., "vocals", "drums").
     /// </summary>
+    [JsonPropertyName("source")]
     public string Source { get; set; } = "";
 
     /// <summary>
@@ -44,7 +47,14 @@ public class NoteEvent
     public float Volume { get; set; } = 1.0f;
 
     /// <summary>
-    /// Runtime selection state. Not recognized during serialization usually.
+    /// Audio pool: array of MIDI pitches for polyphonic playback.
+    /// When visual density is reduced, coalesced notes are preserved here.
+    /// </summary>
+    [JsonPropertyName("audio_pool")]
+    public int[] AudioPool { get; set; }
+
+    /// <summary>
+    /// Runtime selection state. Not serialized.
     /// </summary>
     [NonSerialized]
     public bool Selected = false;
@@ -58,11 +68,13 @@ public class NoteEvent
         [JsonPropertyName("tap")]
         Tap,
         [JsonPropertyName("hold")]
-        Hold
+        Hold,
+        [JsonPropertyName("ghost")]
+        Ghost
     }
 
     /// <summary>
-    /// Note Type: Tap or Hold.
+    /// Note Type: Tap, Hold, or Ghost (audio-only).
     /// </summary>
     [JsonPropertyName("type")]
     public NoteType Type { get; set; } = NoteType.Tap;
@@ -81,6 +93,24 @@ public class NoteEvent
     }
 
     /// <summary>
+    /// Returns MIDI pitches for audio playback.
+    /// Uses AudioPool if available, otherwise falls back to single Pitch.
+    /// </summary>
+    public int[] GetAudioPitches()
+    {
+        if (AudioPool != null && AudioPool.Length > 0)
+            return AudioPool;
+        return new[] { (int)Pitch };
+    }
+
+    /// <summary>
+    /// Returns true if this note is visual (should be rendered).
+    /// Ghost notes (lane=-1 or Type=Ghost) are audio-only.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsVisual => Lane >= 0 && Type != NoteType.Ghost;
+
+    /// <summary>
     /// Runtime edit state.
     /// </summary>
     public enum NoteState
@@ -88,7 +118,7 @@ public class NoteEvent
         Normal,
         Dirty,  // Edited but not confirmed (Paused)
         Edited, // Confirmed (Played), but differs from session start
-        Deleted // Marked for deletion (Ghost)
+        Deleted // Marked for deletion
     }
 
     [JsonIgnore]

@@ -21,7 +21,6 @@ public partial class SynthManager : Node
         foreach(var note in data.Notes)
         {
             float bucket = VocalSynthesiser.GetBucket(note.Duration);
-            int midi = (int)note.Pitch;
             string source = note.Source.ToLower();
             
             // Force vocal for non-drum instruments if ForceVocal is enabled
@@ -30,43 +29,39 @@ public partial class SynthManager : Node
                 source = "vocal";
             }
             
-            string key = $"{source}_{midi}_{bucket:F2}";
-            if (uniqueKeys.Add(key))
+            // Bake all pitches from AudioPool (or single Pitch fallback)
+            foreach (int midi in note.GetAudioPitches())
             {
-                SFXResource res = null;
-                
-                if (source.Contains("vocal"))
+                string key = $"{source}_{midi}_{bucket:F2}";
+                if (uniqueKeys.Add(key))
                 {
-                    // 1. High Quality Vocal Synthesis
-                    int vIdx = (midi * 13 + 7) % 5;
-
-                    // --- HIGH PITCH FIX ---
-                    if (midi > 80) 
+                    SFXResource res = null;
+                    
+                    if (source.Contains("vocal"))
                     {
-                        if (vIdx == 1) vIdx = 0; // Swap I -> A
-                        if (vIdx == 2) vIdx = 4; // Swap U -> O
+                        int vIdx = (midi * 13 + 7) % 5;
+                        if (midi > 80) 
+                        {
+                            if (vIdx == 1) vIdx = 0;
+                            if (vIdx == 2) vIdx = 4;
+                        }
+                        var vowel = (VocalSynthesiser.VowelType)vIdx;
+                        res = VocalSynthesiser.GenerateVocal(midi, vowel, bucket, VocalProfile);
                     }
-                    // ---------------------------------------------
+                    else if (source.Contains("drum"))
+                    {
+                        var type = (midi % 2 == 0) ? VocalSynthesiser.InstrumentType.Kick : VocalSynthesiser.InstrumentType.Snare;
+                        res = VocalSynthesiser.GenerateDrums(type);
+                    }
+                    else
+                    {
+                        res = VocalSynthesiser.GenerateInstrument(midi, bucket);
+                    }
 
-                    var vowel = (VocalSynthesiser.VowelType)vIdx;
-                    res = VocalSynthesiser.GenerateVocal(midi, vowel, bucket, VocalProfile);
-                }
-                else if (source.Contains("drum"))
-                {
-                    // 2. 8-bit Drums (Kick/Snare)
-                    var type = (midi % 2 == 0) ? VocalSynthesiser.InstrumentType.Kick : VocalSynthesiser.InstrumentType.Snare;
-                    res = VocalSynthesiser.GenerateDrums(type);
-                }
-                else
-                {
-                    // 3. All other instruments -> 8-bit Square Wave
-                    // This covers Piano, Guitar, Bass, and Other
-                    res = VocalSynthesiser.GenerateInstrument(midi, bucket);
-                }
-
-                if (res != null)
-                {
-                    _synthBank[key] = res;
+                    if (res != null)
+                    {
+                        _synthBank[key] = res;
+                    }
                 }
             }
         }
@@ -78,20 +73,22 @@ public partial class SynthManager : Node
         if (note.State == NoteEvent.NoteState.Deleted) return;
 
         float bucket = VocalSynthesiser.GetBucket(note.Duration);
-        int midi = (int)note.Pitch;
         string source = note.Source.ToLower();
         
-        // Force vocal for non-drum instruments if ForceVocal is enabled
         if (ForceVocal && !source.Contains("drum"))
         {
             source = "vocal";
         }
         
-        string key = $"{source}_{midi}_{bucket:F2}";
-        
-        if (_synthBank.TryGetValue(key, out var res))
+        // Play all pitches from AudioPool for polyphonic playback
+        foreach (int midi in note.GetAudioPitches())
         {
-            AudioManager.Instance.PlaySFX(res);
+            string key = $"{source}_{midi}_{bucket:F2}";
+            
+            if (_synthBank.TryGetValue(key, out var res))
+            {
+                AudioManager.Instance.PlaySFX(res);
+            }
         }
     }
 }
