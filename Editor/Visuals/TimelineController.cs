@@ -530,16 +530,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         {
             var vis = _notePool.Rent();
             
-            // Get color based on map or source
-            Color color;
-            if (mapKey != null && _mapColors.TryGetValue(mapKey, out Color mapColor))
-            {
-                color = mapColor;
-            }
-            else
-            {
-                color = GetSourceColor(data.Source);
-            }
+            // Always use source-based coloring - map separation is visual via columns/borders
+            Color color = GetSourceColor(data.Source);
             
             vis.Bind(data, color);
             vis.OnInput += HandleNoteInput;
