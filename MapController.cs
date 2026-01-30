@@ -108,7 +108,14 @@ namespace RhythmBeatmapEditor
             {
                 using var file = GodotFileAccess.Open(mapPath, GodotFileAccess.ModeFlags.Read);
                 string json = file.GetAsText();
-                _context.LoadBeatmapJSON(json);
+                
+                // Extract map key from filename
+                string mapKey = Path.GetFileNameWithoutExtension(rawMapPath);
+                // Remove _edited suffix for consistent key naming
+                if (mapKey.EndsWith("_edited"))
+                    mapKey = mapKey.Substring(0, mapKey.Length - 7);
+                    
+                _context.LoadBeatmapJSON(json, mapKey, mapPath);
             }
             else
             {
@@ -120,7 +127,7 @@ namespace RhythmBeatmapEditor
         private void LoadMultipleMaps()
         {
             var paths = Core.SessionData.CurrentMapPaths;
-            var mapJsons = new Dictionary<string, string>();
+            var mapData = new Dictionary<string, (string json, string path)>();
             
             foreach (var rawPath in paths)
             {
@@ -136,10 +143,14 @@ namespace RhythmBeatmapEditor
                 
                 // Extract map key from filename (e.g., "HARD_4k.json" -> "HARD_4k")
                 string mapKey = Path.GetFileNameWithoutExtension(rawPath);
-                mapJsons[mapKey] = json;
+                // Remove _edited suffix for consistent key naming
+                if (mapKey.EndsWith("_edited"))
+                    mapKey = mapKey.Substring(0, mapKey.Length - 7);
+                    
+                mapData[mapKey] = (json, localPath);
             }
             
-            if (mapJsons.Count == 0)
+            if (mapData.Count == 0)
             {
                 GD.PrintErr("[MapController] No valid maps found!");
                 Utility.CrossfadeManager.Instance.LoadScene(jukeboxPath);
@@ -147,7 +158,7 @@ namespace RhythmBeatmapEditor
             }
             
             // Load all maps into EditorContext
-            _context.LoadMultipleBeatmaps(mapJsons);
+            _context.LoadMultipleBeatmaps(mapData);
             
             // Initialize note indices for each map
             _noteIndices.Clear();
@@ -156,7 +167,7 @@ namespace RhythmBeatmapEditor
                 _noteIndices[key] = 0;
             }
             
-            GD.Print($"[MapController] Loaded {mapJsons.Count} maps for comparison");
+            GD.Print($"[MapController] Loaded {mapData.Count} maps for comparison");
         }
         
         private void OnBeatmapLoaded()
@@ -239,6 +250,22 @@ namespace RhythmBeatmapEditor
                 {
                     _context.Seek(0);
                     ResetAllNoteIndices();
+                }
+                
+                // Ctrl+S to save
+                if (k.Keycode == Key.S && k.CtrlPressed)
+                {
+                    if (k.ShiftPressed)
+                    {
+                        // Ctrl+Shift+S: Save all dirty maps
+                        int saved = _context.SaveAllDirtyMaps();
+                        GD.Print($"[MapController] Saved {saved} maps.");
+                    }
+                    else
+                    {
+                        // Ctrl+S: Save active map
+                        _context.SaveActiveMap();
+                    }
                 }
                 
                 // Multi-map mode: Keys 1-4 switch active map for SFX playback

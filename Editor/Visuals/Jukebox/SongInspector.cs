@@ -469,6 +469,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             }
             
             SessionData.CurrentSongPath = _currentSongPath;
+            SessionData.CurrentSongTitle = _currentSongName;
             
             if (_isCompareMode && _selectedMaps.Count > 1)
             {

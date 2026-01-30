@@ -31,6 +31,26 @@ icon = ExtResource("4_ydk87")
 icon_alignment = 1
 expand_icon = true
 
+[node name="SongTitleContainer" type="Control" parent="VBoxContainer/Controls"]
+custom_minimum_size = Vector2(200, 0)
+layout_mode = 2
+clip_contents = true
+
+[node name="LblSongTitle" type="Label" parent="VBoxContainer/Controls/SongTitleContainer"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_top = -11.5
+offset_bottom = 11.5
+grow_vertical = 2
+theme_override_font_sizes/font_size = 16
+text = "Song Title"
+
+[node name="VSeparator0" type="VSeparator" parent="VBoxContainer/Controls"]
+layout_mode = 2
+
 [node name="BtnRewind" type="Button" parent="VBoxContainer/Controls" unique_id=621428126]
 unique_name_in_owner = true
 layout_mode = 2

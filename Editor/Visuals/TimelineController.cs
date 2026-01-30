@@ -552,6 +552,11 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             if (mapKey != null)
             {
                 _noteToMapKey[data] = mapKey;
+                // Also ensure note's MapKey is synced (for edit operations)
+                if (string.IsNullOrEmpty(data.MapKey))
+                {
+                    data.MapKey = mapKey;
+                }
             }
             
             if (_context != null && _context.IsSelected(data))
@@ -705,8 +710,18 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                       col.A = 0.4f; // Ghost alpha
                       
                       // Calculate rects in NoteLayer space - use 0 duration for head-only display
-                      Rect2 ghostRect = CalculateNoteRect(original.Lane, original.Time, 0f, time, hitY);
-                      Rect2 targetRect = CalculateNoteRect(note.Lane, note.Time, 0f, time, hitY);
+                      // Use multi-column mode if applicable
+                      Rect2 ghostRect, targetRect;
+                      if (_isMultiColumnMode && !string.IsNullOrEmpty(note.MapKey))
+                      {
+                          ghostRect = CalculateNoteRectMultiColumn(note.MapKey, original.Lane, original.Time, 0f, time, hitY);
+                          targetRect = CalculateNoteRectMultiColumn(note.MapKey, note.Lane, note.Time, 0f, time, hitY);
+                      }
+                      else
+                      {
+                          ghostRect = CalculateNoteRect(original.Lane, original.Time, 0f, time, hitY);
+                          targetRect = CalculateNoteRect(note.Lane, note.Time, 0f, time, hitY);
+                      }
                       
                       // Adjust height to match note head
                       ghostRect.Size = new Vector2(ghostRect.Size.X, NoteHeadHeight);

@@ -143,6 +143,10 @@ public partial class EditorContext : Node
         foreach(var note in Selection.SelectedNotes)
         {
             note.State = NoteEvent.NoteState.Deleted;
+            
+            // Mark the owning map as dirty
+            var map = GetMapForNote(note);
+            map?.MarkDirty();
         }
         
         RefreshSelectionUI();
@@ -150,12 +154,42 @@ public partial class EditorContext : Node
     
     public void AddNote(NoteEvent note)
     {
+        // Tag with active map key
+        note.MapKey = ActiveMapKey;
+        
         CurrentBeatmap.Notes.Add(note);
         CurrentBeatmap.Sort();
+        CurrentBeatmap.MarkDirty();
         
         // Select the new note
         Selection.Select(note);
         EmitSignal(SignalName.BeatmapLoaded); // Full refresh to ensure visualisation
+    }
+    
+    /// <summary>
+    /// Add note to a specific map (for multi-map mode)
+    /// </summary>
+    public void AddNoteToMap(NoteEvent note, string mapKey)
+    {
+        if (!LoadedMaps.TryGetValue(mapKey, out var map)) return;
+        
+        note.MapKey = mapKey;
+        map.Notes.Add(note);
+        map.Sort();
+        map.MarkDirty();
+        
+        Selection.Select(note);
+        EmitSignal(SignalName.BeatmapLoaded);
+    }
+    
+    /// <summary>
+    /// Get the beatmap that owns a given note (via MapKey)
+    /// </summary>
+    public BeatmapData GetMapForNote(NoteEvent note)
+    {
+        if (!string.IsNullOrEmpty(note.MapKey) && LoadedMaps.TryGetValue(note.MapKey, out var map))
+            return map;
+        return CurrentBeatmap; // Fallback to active map
     }
     
     public void CopySelectedNotes()
@@ -203,11 +237,13 @@ public partial class EditorContext : Node
                 Duration = clip.Duration,
                 Pitch = clip.Pitch,
                 Source = clip.Source,
-                State = NoteEvent.NoteState.Normal
+                State = NoteEvent.NoteState.Normal,
+                MapKey = ActiveMapKey // Paste to active map
             };
             
-            // Clamp Lane
-            note.Lane = Mathf.Clamp(note.Lane, 0, MaxLanes - 1);
+            // Clamp Lane to active map's lane count
+            int maxLane = CurrentBeatmap.LaneCount - 1;
+            note.Lane = Mathf.Clamp(note.Lane, 0, maxLane);
             
             CurrentBeatmap.Notes.Add(note);
             newNotes.Add(note);
@@ -215,16 +251,17 @@ public partial class EditorContext : Node
         }
         
         CurrentBeatmap.Sort();
+        CurrentBeatmap.MarkDirty();
         EmitSignal(SignalName.BeatmapLoaded);
         RefreshSelectionUI();
-        GD.Print($"[EditorContext] Pasted {newNotes.Count} notes.");
+        GD.Print($"[EditorContext] Pasted {newNotes.Count} notes to '{ActiveMapKey}'.");
     }
 
     #endregion
     
     #region API - General
     
-    public void LoadBeatmapJSON(string jsonContent, string mapKey = null)
+    public void LoadBeatmapJSON(string jsonContent, string mapKey = null, string sourcePath = null)
     {
         CancelEdit(); // Clear any pending edits
         try 
@@ -243,6 +280,18 @@ public partial class EditorContext : Node
                 }
                 
                 data.Sort(); // Ensure sorted
+                
+                // Set runtime tracking properties
+                data.MapKey = mapKey;
+                data.SourcePath = sourcePath ?? "";
+                data.IsEdited = sourcePath?.EndsWith("_edited.json") ?? false;
+                data.IsDirty = false;
+                
+                // Tag all notes with their map key
+                foreach (var note in data.Notes)
+                {
+                    note.MapKey = mapKey;
+                }
                 
                 // If this is the first map or replacing single map, clear existing
                 if (LoadedMaps.Count == 0 || !IsMultiMapMode)
@@ -265,23 +314,37 @@ public partial class EditorContext : Node
     }
     
     /// <summary>
-    /// Load multiple beatmaps for comparison mode
+    /// Load multiple beatmaps for comparison mode.
+    /// mapData: Dictionary of mapKey -> (json, sourcePath)
     /// </summary>
-    public void LoadMultipleBeatmaps(Dictionary<string, string> mapJsons)
+    public void LoadMultipleBeatmaps(Dictionary<string, (string json, string path)> mapData)
     {
         CancelEdit();
         LoadedMaps.Clear();
         
         var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true, IncludeFields = true };
         
-        foreach (var kvp in mapJsons)
+        foreach (var kvp in mapData)
         {
             try
             {
-                BeatmapData data = JsonSerializer.Deserialize<BeatmapData>(kvp.Value, options);
+                BeatmapData data = JsonSerializer.Deserialize<BeatmapData>(kvp.Value.json, options);
                 if (data != null)
                 {
                     data.Sort();
+                    
+                    // Set runtime tracking properties
+                    data.MapKey = kvp.Key;
+                    data.SourcePath = kvp.Value.path;
+                    data.IsEdited = kvp.Value.path?.EndsWith("_edited.json") ?? false;
+                    data.IsDirty = false;
+                    
+                    // Tag all notes with their map key
+                    foreach (var note in data.Notes)
+                    {
+                        note.MapKey = kvp.Key;
+                    }
+                    
                     LoadedMaps[kvp.Key] = data;
                     GD.Print($"[EditorContext] Loaded map '{kvp.Key}' with {data.Notes.Count} notes.");
                 }
@@ -376,6 +439,144 @@ public partial class EditorContext : Node
 
         return time;
     }
-
+    
+    #endregion
+    
+    #region API - Save
+    
+    /// <summary>
+    /// Save the active beatmap to an _edited.json file.
+    /// </summary>
+    public bool SaveActiveMap()
+    {
+        return SaveMap(ActiveMapKey);
+    }
+    
+    /// <summary>
+    /// Save a specific beatmap by key.
+    /// </summary>
+    public bool SaveMap(string mapKey)
+    {
+        if (!LoadedMaps.TryGetValue(mapKey, out var map))
+        {
+            GD.PrintErr($"[EditorContext] Cannot save: map '{mapKey}' not found.");
+            return false;
+        }
+        
+        if (!map.IsDirty)
+        {
+            GD.Print($"[EditorContext] Map '{mapKey}' has no changes to save.");
+            return true;
+        }
+        
+        // Build save path: replace .json with _edited.json
+        string savePath = GetEditedPath(map.SourcePath);
+        
+        if (string.IsNullOrEmpty(savePath))
+        {
+            GD.PrintErr($"[EditorContext] Cannot determine save path for '{mapKey}'.");
+            return false;
+        }
+        
+        try
+        {
+            // Filter out deleted notes before saving
+            var notesToSave = new List<NoteEvent>();
+            foreach (var note in map.Notes)
+            {
+                if (note.State != NoteEvent.NoteState.Deleted)
+                {
+                    notesToSave.Add(note);
+                }
+            }
+            
+            // Create save data with cleaned notes
+            var saveData = new BeatmapData
+            {
+                Metadata = map.Metadata,
+                Notes = notesToSave,
+                BPM = map.BPM
+            };
+            
+            var options = new JsonSerializerOptions 
+            { 
+                WriteIndented = true,
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            
+            string json = JsonSerializer.Serialize(saveData, options);
+            
+            // Write to file
+            using var file = Godot.FileAccess.Open(savePath, Godot.FileAccess.ModeFlags.Write);
+            if (file == null)
+            {
+                GD.PrintErr($"[EditorContext] Failed to open file for writing: {savePath}");
+                return false;
+            }
+            
+            file.StoreString(json);
+            file.Close();
+            
+            // Update state
+            map.ClearDirty();
+            map.IsEdited = true;
+            map.SourcePath = savePath;
+            
+            GD.Print($"[EditorContext] Saved map '{mapKey}' to: {savePath}");
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            GD.PrintErr($"[EditorContext] Save failed: {e.Message}");
+            return false;
+        }
+    }
+    
+    /// <summary>
+    /// Save all dirty maps.
+    /// </summary>
+    public int SaveAllDirtyMaps()
+    {
+        int saved = 0;
+        foreach (var mapKey in LoadedMaps.Keys)
+        {
+            if (LoadedMaps[mapKey].IsDirty && SaveMap(mapKey))
+            {
+                saved++;
+            }
+        }
+        return saved;
+    }
+    
+    /// <summary>
+    /// Check if any loaded map has unsaved changes.
+    /// </summary>
+    public bool HasUnsavedChanges()
+    {
+        foreach (var map in LoadedMaps.Values)
+        {
+            if (map.IsDirty) return true;
+        }
+        return false;
+    }
+    
+    /// <summary>
+    /// Gets the _edited.json path for a source path.
+    /// </summary>
+    private string GetEditedPath(string sourcePath)
+    {
+        if (string.IsNullOrEmpty(sourcePath)) return "";
+        
+        // If already _edited, keep it
+        if (sourcePath.EndsWith("_edited.json"))
+            return sourcePath;
+            
+        // Replace .json with _edited.json
+        if (sourcePath.EndsWith(".json"))
+            return sourcePath.Replace(".json", "_edited.json");
+            
+        return sourcePath + "_edited.json";
+    }
+    
     #endregion
 }

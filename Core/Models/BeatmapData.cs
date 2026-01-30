@@ -70,6 +70,50 @@ public class BeatmapData
     /// </summary>
     [JsonIgnore]
     public int LaneCount => Metadata?.Lanes > 0 ? Metadata.Lanes : 4;
+    
+    #region Runtime State (Not Serialized)
+    
+    /// <summary>
+    /// True if this map has unsaved changes.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsDirty { get; set; } = false;
+    
+    /// <summary>
+    /// True if this map was loaded from an _edited.json file.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsEdited { get; set; } = false;
+    
+    /// <summary>
+    /// Original file path this map was loaded from.
+    /// </summary>
+    [JsonIgnore]
+    public string SourcePath { get; set; } = "";
+    
+    /// <summary>
+    /// Map key (e.g., "HARD_4k") for identification.
+    /// </summary>
+    [JsonIgnore]
+    public string MapKey { get; set; } = "";
+    
+    #endregion
+
+    /// <summary>
+    /// Marks this map as dirty (has unsaved changes).
+    /// </summary>
+    public void MarkDirty()
+    {
+        IsDirty = true;
+    }
+    
+    /// <summary>
+    /// Clears the dirty flag (after save).
+    /// </summary>
+    public void ClearDirty()
+    {
+        IsDirty = false;
+    }
 
     /// <summary>
     /// Sorts notes by time.

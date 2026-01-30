@@ -9,6 +9,11 @@ namespace RhythmBeatmapEditor.Core
         public static string CurrentMapPath { get; set; }
         
         /// <summary>
+        /// Display title for the current song
+        /// </summary>
+        public static string CurrentSongTitle { get; set; }
+        
+        /// <summary>
         /// Multiple map paths for compare mode (null if single map)
         /// </summary>
         public static List<string> CurrentMapPaths { get; set; }
@@ -22,6 +27,7 @@ namespace RhythmBeatmapEditor.Core
         {
             CurrentSongPath = null;
             CurrentMapPath = null;
+            CurrentSongTitle = null;
             CurrentMapPaths = null;
         }
     }

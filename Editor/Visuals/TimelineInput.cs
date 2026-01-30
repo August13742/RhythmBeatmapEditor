@@ -188,6 +188,14 @@ public partial class TimelineInput : Node
         if (_context == null) return;
         _dragLeadNote = null;
         _unsnappedDragTime = 0;
+        
+        // Mark affected maps as dirty
+        foreach (var note in _context.SelectedNotes)
+        {
+            var map = _context.GetMapForNote(note);
+            map?.MarkDirty();
+        }
+        
         _context.CurrentBeatmap.Sort();
         _context.RefreshSelectionUI();
     }

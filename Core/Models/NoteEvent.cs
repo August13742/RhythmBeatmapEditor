@@ -58,6 +58,13 @@ public class NoteEvent
     /// </summary>
     [NonSerialized]
     public bool Selected = false;
+    
+    /// <summary>
+    /// Runtime map association. Not serialized.
+    /// Tracks which map this note belongs to in multi-map mode.
+    /// </summary>
+    [JsonIgnore]
+    public string MapKey { get; set; } = "";
 
     /// <summary>
     /// Note Type Enum.

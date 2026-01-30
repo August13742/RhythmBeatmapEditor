@@ -21,6 +21,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         
         [ExportGroup("Styling")]
         [Export] public Texture2D SliderGrabber { get; set; }
+        [Export] public int SongTitleMaxWidth { get; set; } = 200;
         
         // Controls (Bind via Unique Names)
         private Button _btnPlay;
@@ -32,13 +33,19 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         private HSlider _sliderProgress;
         private Label _lblTime;
         private Label _lblMode;
+        private Label _lblSongTitle;
         private Button _btnRevertAll; 
         
         // Dialogs
-        private ConfirmationDialog _confirmRevert; 
+        private ConfirmationDialog _confirmRevert;
+        private ConfirmationDialog _confirmQuit;
 
         // State
         private bool _isDraggingSlider = false;
+        private float _titleScrollOffset = 0f;
+        private float _titleScrollSpeed = 30f; // pixels per second
+        private bool _titleNeedsScroll = false;
+        private float _titleFullWidth = 0f;
 
         private HSlider _sliderMusicVol, _sliderSFXVol;
 
@@ -53,6 +60,7 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _btnForward1 = GetNode<Button>("%BtnForward1");
             _lblTime = GetNode<Label>("%LblTime");
             _lblMode = GetNode<Label>("%LblMode");
+            _lblSongTitle = GetNodeOrNull<Label>("%LblSongTitle");
             _btnRevertAll = GetNode<Button>("%BtnRevertAll");
             _sliderProgress = GetNode<HSlider>("%SliderProgress");
             
@@ -60,6 +68,24 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _sliderSFXVol = GetNode<HSlider>("%SliderSFXVol");
             
             _confirmRevert = GetNode<ConfirmationDialog>("%ConfirmRevert");
+            _confirmQuit = GetNodeOrNull<ConfirmationDialog>("%ConfirmQuit");
+            
+            // Create quit dialog if not in scene
+            if (_confirmQuit == null)
+            {
+                _confirmQuit = new ConfirmationDialog
+                {
+                    Title = "Unsaved Changes",
+                    DialogText = "You have unsaved changes. What would you like to do?",
+                    OkButtonText = "Save & Quit",
+                    CancelButtonText = "Cancel"
+                };
+                // Add "Quit Without Saving" button
+                _confirmQuit.AddButton("Quit Without Saving", true, "quit_nosave");
+                _confirmQuit.CustomAction += OnQuitDialogAction;
+                _confirmQuit.Confirmed += OnQuitSaveAndQuit;
+                AddChild(_confirmQuit);
+            }
             
             SetupLogic();
             ApplyStyling();
@@ -83,6 +109,33 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 float len = _context.AudioController.GetLength();
                 if (len > 0.1f) _sliderProgress.MaxValue = len;
             }
+            
+            // Set song title from session data
+            UpdateSongTitle();
+        }
+        
+        private void UpdateSongTitle()
+        {
+            if (_lblSongTitle == null) return;
+            
+            string title = Core.SessionData.CurrentSongTitle;
+            if (string.IsNullOrEmpty(title))
+            {
+                // Extract from path if title not set
+                string path = Core.SessionData.CurrentSongPath;
+                if (!string.IsNullOrEmpty(path))
+                {
+                    title = System.IO.Path.GetFileNameWithoutExtension(path);
+                }
+            }
+            
+            _lblSongTitle.Text = title ?? "Unknown";
+            
+            // Check if scrolling is needed
+            _lblSongTitle.ResetSize();
+            _titleFullWidth = _lblSongTitle.GetMinimumSize().X;
+            _titleNeedsScroll = _titleFullWidth > SongTitleMaxWidth;
+            _titleScrollOffset = 0f;
         }
         
         public override void _ExitTree()
@@ -120,12 +173,27 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 _lblMode.Text = _context.IsEditMode ? "EDITING" : "PLAYING";
                 _lblMode.Modulate = _context.IsEditMode ? Colors.Orange : Colors.Green;
             }
+            
+            // Scroll song title if needed
+            if (_lblSongTitle != null && _titleNeedsScroll)
+            {
+                _titleScrollOffset += _titleScrollSpeed * (float)delta;
+                float maxScroll = _titleFullWidth - SongTitleMaxWidth + 50; // 50px pause buffer
+                if (_titleScrollOffset > maxScroll + 100) // Extra pause at end
+                {
+                    _titleScrollOffset = -50; // Start from left with buffer
+                }
+                
+                // Use clip_text and position offset via shader or custom draw
+                // For simplicity, we'll just use text clipping
+                _lblSongTitle.Position = new Vector2(-Mathf.Max(0, _titleScrollOffset), _lblSongTitle.Position.Y);
+            }
         }
 
         private void SetupLogic()
         {
             // Connect Button Signals
-            _btnBack.Pressed += () => GetTree().ChangeSceneToFile("res://Editor/Visuals/Jukebox/Jukebox.tscn");
+            _btnBack.Pressed += OnBackPressed;
             
             // Seek Buttons
             _btnRewind.Pressed += () => SeekRel(-5);
@@ -162,6 +230,41 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             
             _sliderMusicVol.FocusMode = FocusModeEnum.None;
             _sliderSFXVol.FocusMode = FocusModeEnum.None;
+        }
+        
+        private void OnBackPressed()
+        {
+            if (_context != null && _context.HasUnsavedChanges())
+            {
+                _confirmQuit.PopupCentered();
+            }
+            else
+            {
+                QuitToJukebox();
+            }
+        }
+        
+        private void OnQuitDialogAction(StringName action)
+        {
+            if (action == "quit_nosave")
+            {
+                _confirmQuit.Hide();
+                QuitToJukebox();
+            }
+        }
+        
+        private void OnQuitSaveAndQuit()
+        {
+            if (_context != null)
+            {
+                _context.SaveAllDirtyMaps();
+            }
+            QuitToJukebox();
+        }
+        
+        private void QuitToJukebox()
+        {
+            GetTree().ChangeSceneToFile("res://Editor/Visuals/Jukebox/Jukebox.tscn");
         }
         
         private void ApplyStyling()
