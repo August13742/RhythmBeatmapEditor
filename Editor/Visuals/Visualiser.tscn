@@ -2,13 +2,13 @@
 
 [ext_resource type="Script" uid="uid://dt04sm6hqrvlw" path="res://MapController.cs" id="1_71ux2"]
 [ext_resource type="PackedScene" uid="uid://08h24ixt4lfm" path="res://Editor/Visuals/SongControlPanel.tscn" id="2_u3e1j"]
-[ext_resource type="PackedScene" uid="uid://dwsbi6vi475hi" path="res://Editor/Visuals/TimelineView.tscn" id="2_xklu0"]
+[ext_resource type="PackedScene" uid="uid://dwsbi6vi475hi" path="res://Editor/Visuals/TimelineController.tscn" id="2_xklu0"]
 [ext_resource type="Script" uid="uid://ikh5xt0ukhj3" path="res://Core/Editor/EditorStateManager.cs" id="3_state"]
 [ext_resource type="PackedScene" uid="uid://c8d24ixt4lfm" path="res://Editor/Visuals/NoteInspector.tscn" id="4_inspector"]
 
 [node name="MapController" type="Node" unique_id=1065567127 node_paths=PackedStringArray("TimelineUI", "Inspector", "StateManager", "SongPanel")]
 script = ExtResource("1_71ux2")
-TimelineUI = NodePath("VBoxContainer/HBoxContainer/TimelineView")
+TimelineUI = NodePath("VBoxContainer/HBoxContainer/TimelineController")
 Inspector = NodePath("VBoxContainer/HBoxContainer/NoteInspector")
 StateManager = NodePath("EditorStateManager")
 SongPanel = NodePath("VBoxContainer/SongControlPanel")
@@ -17,7 +17,7 @@ SongPanel = NodePath("VBoxContainer/SongControlPanel")
 script = ExtResource("3_state")
 Inspector = NodePath("../VBoxContainer/HBoxContainer/NoteInspector")
 SongPanel = NodePath("../VBoxContainer/SongControlPanel")
-Timeline = NodePath("../VBoxContainer/HBoxContainer/TimelineView")
+Timeline = NodePath("../VBoxContainer/HBoxContainer/TimelineController")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1602060593]
 anchors_preset = 15
@@ -30,7 +30,7 @@ grow_vertical = 2
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="TimelineView" parent="VBoxContainer/HBoxContainer" unique_id=2050564706 instance=ExtResource("2_xklu0")]
+[node name="TimelineController" parent="VBoxContainer/HBoxContainer" unique_id=2050564706 instance=ExtResource("2_xklu0")]
 layout_mode = 2
 size_flags_horizontal = 3
 PixelsPerSecond = 1500.0

@@ -1,11 +1,11 @@
-[gd_scene format=3 uid="uid://km8tm7dmu646"]
+[gd_scene format=3 uid="uid://dwsbi6vi475hi"]
 
 [ext_resource type="Script" uid="uid://dwyj8ssswqk33" path="res://Editor/Visuals/TimelineController.cs" id="1_wwt3p"]
 [ext_resource type="PackedScene" uid="uid://b71l52rbtpjxn" path="res://Editor/Visuals/NoteLayer.tscn" id="2_7txip"]
 [ext_resource type="PackedScene" uid="uid://byauknmek3lyt" path="res://Editor/Visuals/NoteObject.tscn" id="2_x8h6v"]
 [ext_resource type="Script" uid="uid://cihhr4jvctbhn" path="res://Editor/Visuals/GhostLayer.cs" id="3_ghost"]
 
-[node name="TimelineView" type="Control" unique_id=2050564706 node_paths=PackedStringArray("Highway", "LaneContainer", "NoteLayer", "GhostLayer", "HitLine")]
+[node name="TimelineController" type="Control" unique_id=2050564706 node_paths=PackedStringArray("Highway", "LaneContainer", "NoteLayer", "GhostLayer", "HitLine")]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
