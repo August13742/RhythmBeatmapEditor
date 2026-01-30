@@ -147,6 +147,14 @@ public partial class EditorAudioController : Node
     public void SetSFXVolume(float linear)
     {
         SFXVolume = Mathf.Clamp(linear, 0f, 2f);
+        
+        // Update the SFX audio bus so AudioManager.PlaySFX() respects volume
+        int busIdx = AudioServer.GetBusIndex("SFX");
+        if (busIdx != -1)
+        {
+            float db = SFXVolume > 0.0001f ? Mathf.LinearToDb(SFXVolume) : -80f;
+            AudioServer.SetBusVolumeDb(busIdx, db);
+        }
     }
     
     public void PlayOneShot(AudioStream stream)

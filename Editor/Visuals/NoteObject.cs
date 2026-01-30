@@ -71,14 +71,22 @@ public partial class NoteObject : Control, IPoolable
     
     public override void _GuiInput(InputEvent @event)
     {
+        // Only allow drag if note is selected
         if (@event is InputEventMouseMotion mm && (mm.ButtonMask & MouseButtonMask.Left) != 0)
         {
-            OnDrag?.Invoke(this, mm.Relative);
+            if (IsSelected)
+            {
+                OnDrag?.Invoke(this, mm.Relative);
+            }
+            // If not selected, don't consume the event - let it pass through for marquee
         }
         
         if (@event is InputEventMouseButton mbRelease && !mbRelease.Pressed && mbRelease.ButtonIndex == MouseButton.Left)
         {
-            OnDragEnd?.Invoke(this);
+            if (IsSelected)
+            {
+                OnDragEnd?.Invoke(this);
+            }
         }
 
         if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left)
@@ -90,19 +98,16 @@ public partial class NoteObject : Control, IPoolable
     public void SetSelectState(bool selected)
     {
         IsSelected = selected;
-        // Highlight logic
-        Color borderCol = IsSelected ? Colors.Yellow : Colors.White;
         
-        if (Head != null)
+        // Use overall Modulate for a clear yellow tint when selected
+        // This affects the entire note including head and body
+        if (IsSelected)
         {
-            // Update Border Color
-            if(Head is Panel p && p.GetThemeStylebox("panel") is StyleBoxFlat sb)
-            {
-               // This modifies the resource shared by all instances? 
-               // Better to use SelfModulate if possible or duplicate stylebox.
-               // For simplicity, let's just Modulate the Head container if it's the border?
-               Head.SelfModulate = borderCol; 
-            }
+            Modulate = new Color(1.0f, 1.0f, 0.5f, 1.0f); // Yellow tint
+        }
+        else
+        {
+            Modulate = Colors.White; // Normal
         }
     }
     

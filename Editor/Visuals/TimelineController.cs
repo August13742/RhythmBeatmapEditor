@@ -48,8 +48,9 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             public float Width;
             public Color Color;
         }
-        private LaneLayout[] _laneCache;
-
+        private LaneLayout[] _laneCache;        
+        // Offset from NoteLayer to GhostLayer for coordinate conversion
+        private Vector2 _noteToGhostOffset;
         // --- Optimisation: Spawning ---
         private int _spawnStartIndex = 0;
         private List<NoteEvent> _despawnCache = new();
@@ -82,8 +83,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             _context = context;
             _currentMap = context.CurrentBeatmap;
             
-            // Pass Highway as root for coordinate checks
-            _input.Initialise(context, Highway, NoteLayer, PixelsPerSecond);
+            // Pass 'this' (TimelineView) as event source since _GuiInput receives coords in our local space
+            _input.Initialise(context, this, NoteLayer, PixelsPerSecond);
             _context.OnSelectionChanged += HandleExternalSelectionInfo;
 
             // 1. Setup Lanes - use metadata.lanes or derive from notes
@@ -153,8 +154,17 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                 // GD.Print($"[Timeline] Layout updated. Width: {currentLaneRect.Size.X}"); 
             }
 
-            float start = time - 1.0f;
-            float end = time + LookAheadTime;
+            // Calculate visible time window based on screen dimensions and scroll speed
+            float pps = _context.ScrollSpeed > 0 ? _context.ScrollSpeed : PixelsPerSecond;
+            float hitY = Highway.Size.Y - HitLineOffset;
+            
+            // Time visible above hit line (notes approaching)
+            float lookAhead = hitY / pps;
+            // Time visible below hit line (notes passed) + small buffer
+            float lookBehind = (Highway.Size.Y - hitY + 50f) / pps;
+            
+            float start = time - lookBehind;
+            float end = time + lookAhead;
 
             // 1. Despawn
             _despawnCache.Clear();
@@ -186,9 +196,6 @@ namespace RhythmBeatmapEditor.Editor.Visuals
 
             // 3. Layout Update
             GhostLayer.Clear();
-            
-            
-            float hitY = Highway.Size.Y - HitLineOffset;
             
             foreach (var kvp in _activeVisuals)
             {
@@ -241,6 +248,11 @@ namespace RhythmBeatmapEditor.Editor.Visuals
             if (overlappingNotes.Count > 0)
             {
                  _context.HandleMarqueeSelection(overlappingNotes);
+            }
+            else
+            {
+                // Clicked empty space - clear selection
+                _context.ClearSelection();
             }
         }
 
@@ -295,23 +307,37 @@ namespace RhythmBeatmapEditor.Editor.Visuals
         
         private void UpdateGhostsAndOverlays(float time, float hitY)
         {
+             const float NoteHeadHeight = 20f; // Match NoteObject.tscn Head height
+             
              // Iterate Dirty List
              foreach(var note in _context.GetDirtyNotes())
              {
                   var original = _context.GetOriginal(note);
                   
                   // 1. Ghost Logic (Show if Moved)
-                  // Ghost shows Original Position
+                  // Ghost shows Original Position (head only, not full duration)
                   if (Mathf.Abs(note.Time - original.Time) > 0.001f || note.Lane != original.Lane)
                   {
                       Color col = GetSourceColor(original.Source);
                       col.A = 0.4f; // Ghost alpha
                       
-                      Rect2 ghostRect = CalculateNoteRect(original.Lane, original.Time, original.Duration, time, hitY);
-                      Rect2 targetRect = CalculateNoteRect(note.Lane, note.Time, note.Duration, time, hitY);
+                      // Calculate rects in NoteLayer space - use 0 duration for head-only display
+                      Rect2 ghostRect = CalculateNoteRect(original.Lane, original.Time, 0f, time, hitY);
+                      Rect2 targetRect = CalculateNoteRect(note.Lane, note.Time, 0f, time, hitY);
                       
-                      // Safety: GhostLayer handles coordinate drawing
-                      GhostLayer.AddGhost(ghostRect, targetRect.GetCenter(), col);
+                      // Adjust height to match note head
+                      ghostRect.Size = new Vector2(ghostRect.Size.X, NoteHeadHeight);
+                      ghostRect.Position = new Vector2(ghostRect.Position.X, ghostRect.Position.Y + (15f - NoteHeadHeight)); // Adjust Y since CalculateNoteRect uses min 15
+                      
+                      // Adjust target rect the same way for proper center
+                      targetRect.Size = new Vector2(targetRect.Size.X, NoteHeadHeight);
+                      targetRect.Position = new Vector2(targetRect.Position.X, targetRect.Position.Y + (15f - NoteHeadHeight));
+                      
+                      // Convert to GhostLayer space by applying offset
+                      ghostRect.Position += _noteToGhostOffset;
+                      Vector2 targetCenter = targetRect.GetCenter() + _noteToGhostOffset;
+                      
+                      GhostLayer.AddGhost(ghostRect, targetCenter, col);
                   }
                   
                   // 2. Delta Label Logic (Show on Active Visual only)
@@ -388,6 +414,12 @@ namespace RhythmBeatmapEditor.Editor.Visuals
                     // We can keep this for debug or lane bg if needed, but unused by notes now.
                     _laneCache[i].Color = Colors.White; 
                 }
+            }
+            
+            // Compute offset from NoteLayer to GhostLayer for ghost coordinate conversion
+            if (GhostLayer != null)
+            {
+                _noteToGhostOffset = NoteLayer.GlobalPosition - GhostLayer.GlobalPosition;
             }
         }
 

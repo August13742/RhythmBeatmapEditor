@@ -10,7 +10,7 @@ public partial class TimelineInput : Node
 
     
     private EditorContext _context;
-    private Control _timelineRoot; // For coordinate conversions
+    private Control _eventSource; // The control receiving _GuiInput (TimelineView)
     private Control _noteLayer;
     private float _pixelsPerSecond = 100f; // Fallback
     
@@ -24,10 +24,10 @@ public partial class TimelineInput : Node
     private Vector2 _marqueeStart;
     private ColorRect _marqueeVisual;
     
-    public void Initialise(EditorContext context, Control timelineRoot, Control noteLayer, float pps)
+    public void Initialise(EditorContext context, Control eventSource, Control noteLayer, float pps)
     {
         _context = context;
-        _timelineRoot = timelineRoot;
+        _eventSource = eventSource;
         _noteLayer = noteLayer;
         _pixelsPerSecond = pps;
         
@@ -45,9 +45,14 @@ public partial class TimelineInput : Node
         {
             if (mb.Pressed)
             {
+                // mb.Position is local to _eventSource (TimelineView)
+                // Convert: EventSource local → Global → NoteLayer local
+                Vector2 globalPos = _eventSource.GetGlobalTransform() * mb.Position;
+                Vector2 localPos = _noteLayer.GetGlobalTransform().AffineInverse() * globalPos;
+                
                 // Start Selection
                 _isMarqueeDragging = true;
-                _marqueeStart = mb.Position; // Local to TimelineController (if caller is TimelineController)
+                _marqueeStart = localPos;
                 _marqueeVisual.Visible = true;
                 _marqueeVisual.Position = _marqueeStart;
                 _marqueeVisual.Size = Vector2.Zero;
@@ -63,14 +68,13 @@ public partial class TimelineInput : Node
         }
         else if (@event is InputEventMouseMotion mm && _isMarqueeDragging)
         {
-             // Update Visual
-             var end = mm.Position;
-             var min = new Vector2(Mathf.Min(_marqueeStart.X, end.X), Mathf.Min(_marqueeStart.Y, end.Y));
-             var max = new Vector2(Mathf.Max(_marqueeStart.X, end.X), Mathf.Max(_marqueeStart.Y, end.Y));
+             // mm.Position is local to _eventSource (TimelineView)
+             Vector2 globalEnd = _eventSource.GetGlobalTransform() * mm.Position;
+             Vector2 localEnd = _noteLayer.GetGlobalTransform().AffineInverse() * globalEnd;
              
-             // Marquee visual needs to be local to NoteLayer? 
-             // If TimelineHandler passes event from TimelineController (Root), we need to adjust if NoteLayer is offset?
-             // Assuming NoteLayer fills Root.
+             var min = new Vector2(Mathf.Min(_marqueeStart.X, localEnd.X), Mathf.Min(_marqueeStart.Y, localEnd.Y));
+             var max = new Vector2(Mathf.Max(_marqueeStart.X, localEnd.X), Mathf.Max(_marqueeStart.Y, localEnd.Y));
+             
              _marqueeVisual.Position = min;
              _marqueeVisual.Size = max - min;
         }
@@ -123,9 +127,9 @@ public partial class TimelineInput : Node
          
          // Dynamic Threshold: Timeline Width / Lane Count
          float laneWidth = 150f; // Default fallback
-         if (_timelineRoot != null && _context.MaxLanes > 0)
+         if (_eventSource != null && _context.MaxLanes > 0)
          {
-             laneWidth = _timelineRoot.Size.X / _context.MaxLanes;
+             laneWidth = _eventSource.Size.X / _context.MaxLanes;
          }
          float threshold = laneWidth;
          
@@ -198,8 +202,8 @@ public partial class TimelineInput : Node
             {
                 float pps = _context.ScrollSpeed;
                 float hitY = height - hitLineOffset;
-                // We use timelineRoot to get consistent Y coordinate (Vertical scroll/layout)
-                float myY = _timelineRoot.GetLocalMousePosition().Y; 
+                // We use eventSource to get consistent Y coordinate (Vertical scroll/layout)
+                float myY = _eventSource.GetLocalMousePosition().Y; 
                 
                 float time = _context.PlaybackTime + (hitY - myY) / pps;
                 time = _context.SnapTime(time);
