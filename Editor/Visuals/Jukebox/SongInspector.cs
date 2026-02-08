@@ -103,7 +103,13 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             _lblStats.Text = "[i]Select a difficulty...[/i]";
             UpdateLoadButton();
             
-            foreach(var child in _selectionContainer.GetChildren()) child.QueueFree();
+            foreach (var child in _selectionContainer.GetChildren())
+            {
+                if (child == _chkCompareMode)
+                    _selectionContainer.RemoveChild(_chkCompareMode);
+                else
+                    child.QueueFree();
+            }
             
             string beatmapFolder = $"res://Beatmap/{songName}";
             var foundMaps = new List<BeatmapFileInfo>();
@@ -193,6 +199,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             _selectionContainer.AddChild(_difficultyRow);
             
             // Add compare mode checkbox
+            if (_chkCompareMode.GetParent() != null)
+                _chkCompareMode.GetParent().RemoveChild(_chkCompareMode);
             _selectionContainer.AddChild(_chkCompareMode);
         }
         
@@ -247,6 +255,8 @@ namespace RhythmBeatmapEditor.Editor.Visuals.Jukebox
             _difficultyRow = row;
             
             // Add compare mode checkbox
+            if (_chkCompareMode.GetParent() != null)
+                _chkCompareMode.GetParent().RemoveChild(_chkCompareMode);
             _selectionContainer.AddChild(_chkCompareMode);
         }
         
